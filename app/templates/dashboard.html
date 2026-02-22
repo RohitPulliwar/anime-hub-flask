@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+    <h1>Welcome to Your Dashboard 🎉</h1>
+
+    <p>You are successfully logged in.</p>
+
+    <div style="margin-top:20px;">
+        <a href="{{ url_for('main_bp.home') }}" 
+           style="padding:10px 15px; background:#222; color:white; text-decoration:none; border-radius:5px;">
+            Go to Home
+        </a>
+
+        <a href="{{ url_for('auth_bp.logout') }}" 
+           style="padding:10px 15px; background:#ff4c4c; color:white; text-decoration:none; border-radius:5px; margin-left:10px;">
+            Logout
+        </a>
+    </div>
+{% endblock %}
