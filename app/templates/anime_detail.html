@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}{{ anime.title }}{% endblock %}
+
+{% block content %}
+
+<div style="display:flex; gap:40px; flex-wrap:wrap; padding:40px;">
+
+    <!-- Poster -->
+    <div>
+        <img src="{{ anime.images.jpg.image_url }}"
+             style="width:300px; border-radius:12px;">
+    </div>
+
+    <!-- Details -->
+    <div style="flex:1; min-width:300px;">
+
+        <h1>{{ anime.title }}</h1>
+
+        <p><strong>⭐ Score:</strong> {{ anime.score or "N/A" }}</p>
+        <p><strong>🎬 Episodes:</strong> {{ anime.episodes or "Unknown" }}</p>
+        <p><strong>📺 Type:</strong> {{ anime.type }}</p>
+        <p><strong>📅 Status:</strong> {{ anime.status }}</p>
+
+        <p>
+            <strong>🎭 Genres:</strong>
+            {% for genre in anime.genres %}
+                {{ genre.name }}{% if not loop.last %}, {% endif %}
+            {% endfor %}
+        </p>
+
+        <br>
+
+        <p style="line-height:1.6;">
+            {{ anime.synopsis }}
+        </p>
+
+        {% if "user_id" in session %}
+            <button id="fav-btn"
+                    style="
+                        padding:10px 18px;
+                        border:none;
+                        background:#222;
+                        color:white;
+                        border-radius:6px;
+                        cursor:pointer;
+                        margin-top:20px;
+                        font-weight:bold;
+                    ">
+
+                {% if is_favorite %}
+                    ❌ Remove from Favorites
+                {% else %}
+                    ❤️ Add to Favorites
+                {% endif %}
+            </button>
+        {% else %}
+            <p style="margin-top:20px;">Login to manage favorites ❤️</p>
+        {% endif %}
+
+    </div>
+</div>
+
+{% if "user_id" in session %}
+<script>
+
+const animeData = {
+    anime_id: {{ anime.mal_id | tojson }},
+    anime_title: {{ anime.title | tojson }},
+    anime_image: {{ anime.images.jpg.image_url | tojson }}
+};
+
+document.getElementById("fav-btn").addEventListener("click", function() {
+
+    fetch("{{ url_for('fav_bp.toggle_favorite') }}", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(animeData)
+    })
+    .then(response => response.json())
+    .then(data => {
+
+        if (data.status === "added") {
+            document.getElementById("fav-btn").innerText = "❌ Remove from Favorites";
+        }
+
+        if (data.status === "removed") {
+            document.getElementById("fav-btn").innerText = "❤️ Add to Favorites";
+        }
+
+    });
+
+});
+</script>
+{% endif %}
+
+{% endblock %}

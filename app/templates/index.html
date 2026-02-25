@@ -1,14 +1,119 @@
 {% extends "base.html" %}
 
-{% block title %}Home{% endblock %}
+{% block title %}Anime World{% endblock %}
 
 {% block content %}
-    <h1>Welcome to Anime World 🌸</h1>
 
-    {% if session.get("user_id") %}
-        <p>You are logged in.</p>
-        <a href="{{ url_for('main_bp.dashboard') }}">Go to Dashboard</a>
+<!-- HERO SECTION -->
+<div style="
+    text-align:center;
+    padding:60px 20px 40px 20px;
+    background:linear-gradient(135deg, #1f1f1f, #151515);
+    border-radius:16px;
+    margin-bottom:50px;
+">
+
+    <h1 style="font-size:36px; margin-bottom:15px;">
+        Discover Your Next Favorite Anime 🌸
+    </h1>
+
+    <p style="color:#aaa; font-size:16px; margin-bottom:25px;">
+        Track, explore, and stay updated with trending anime worldwide.
+    </p>
+
+    {% if not session.get("user_id") %}
+        <a href="{{ url_for('auth_bp.register') }}"
+           class="btn btn-primary"
+           style="margin-right:10px;">
+            Get Started
+        </a>
+
+        <a href="{{ url_for('auth_bp.login') }}"
+           class="btn btn-dark">
+            Login
+        </a>
     {% else %}
-        <p>Please login or register to start exploring anime.</p>
+        <a href="{{ url_for('main_bp.dashboard') }}"
+           class="btn btn-primary">
+            Go to Dashboard
+        </a>
     {% endif %}
+
+</div>
+
+
+<!-- TRENDING SECTION -->
+<h3 style="
+    margin-bottom:20px;
+    font-size:20px;
+    font-weight:600;
+    border-left:4px solid #ff4c4c;
+    padding-left:12px;
+">
+    🔥 Trending Right Now
+</h3>
+
+<div style="
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap:24px;
+">
+
+    {% for anime in trending %}
+
+    <a href="{{ url_for('main_bp.anime_detail', anime_id=anime['mal_id']) }}"
+       style="text-decoration:none; color:white;">
+
+        <div style="
+            background:#1e1e1e;
+            border-radius:16px;
+            overflow:hidden;
+            box-shadow:0 6px 18px rgba(0,0,0,0.45);
+            transition:0.25s ease;
+        "
+        onmouseover="this.style.transform='scale(1.06)'"
+        onmouseout="this.style.transform='scale(1)'">
+
+            <div style="position:relative;">
+
+                <img src="{{ anime['images']['jpg']['image_url'] }}"
+                     style="width:100%; height:260px; object-fit:cover;">
+
+                {% if anime['score'] %}
+                <div style="
+                    position:absolute;
+                    top:12px;
+                    right:12px;
+                    background:#ff4c4c;
+                    padding:6px 10px;
+                    border-radius:10px;
+                    font-size:12px;
+                    font-weight:600;
+                ">
+                    ⭐ {{ anime['score'] }}
+                </div>
+                {% endif %}
+
+            </div>
+
+            <div style="padding:14px;">
+                <p style="
+                    font-size:14px;
+                    font-weight:500;
+                    color:#f1f1f1;
+                    min-height:40px;
+                ">
+                    {{ anime['title'][:45] }}
+                    {% if anime['title']|length > 45 %}...{% endif %}
+                </p>
+            </div>
+
+        </div>
+
+    </a>
+
+    {% endfor %}
+
+</div>
+
 {% endblock %}

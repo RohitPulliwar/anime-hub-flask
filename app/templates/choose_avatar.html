@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Choose Avatar</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+
+        h1 {
+            margin-bottom: 40px;
+        }
+
+        .avatar-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 30px;
+            max-width: 800px;
+            margin: auto;
+        }
+
+        .avatar-item {
+            background: rgba(255,255,255,0.05);
+            padding: 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: 0.3s;
+            position: relative;
+        }
+
+        .avatar-item:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 0 20px rgba(0,255,255,0.7);
+        }
+
+        .avatar-item input {
+            display: none;
+        }
+
+        .avatar-item img {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: 4px solid transparent;
+            object-fit: cover;
+            transition: 0.3s;
+        }
+
+        .avatar-item input:checked + img {
+            border: 4px solid #00ffff;
+            box-shadow: 0 0 20px #00ffff;
+        }
+
+        .save-btn {
+            margin-top: 40px;
+            padding: 12px 30px;
+            background: linear-gradient(45deg, #00ffff, #ff00ff);
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            color: black;
+            transition: 0.3s;
+        }
+
+        .save-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .back-btn {
+            display: inline-block;
+            margin-top: 20px;
+            text-decoration: none;
+            color: #ccc;
+            font-size: 14px;
+        }
+
+        .back-btn:hover {
+            color: #00ffff;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Choose Your Avatar</h1>
+
+    <form method="POST">
+        <div class="avatar-grid">
+
+            {% for avatar in avatars %}
+            <label class="avatar-item">
+                <input type="radio" name="avatar" value="{{ avatar }}"
+                {% if user['avatar'] == avatar %} checked {% endif %}>
+
+                <img src="{{ url_for('static', filename='profile_pics/' + avatar) }}">
+            </label>
+            {% endfor %}
+
+        </div>
+
+        <button type="submit" class="save-btn">Save Avatar</button>
+    </form>
+
+    <a href="{{ url_for('main_bp.profile') }}" class="back-btn">
+        ← Back to Profile
+    </a>
+
+</body>
+</html>

@@ -2,67 +2,128 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>{% block title %}My Anime App{% endblock %}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-
+    <title>{% block title %}Anime World{% endblock %}</title>
+    
     <style>
         body {
             margin: 0;
-            font-family: Arial, sans-serif;
+            font-family: Arial, Helvetica, sans-serif;
+            background-color: #121212;
+            color: #ffffff;
         }
 
-        nav {
-            background-color: #222;
-            padding: 12px;
+        /* Navbar */
+        .navbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 40px;
+            background-color: #1f1f1f;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
         }
 
-        nav a {
-            color: white;
+        .nav-left a, .nav-right a {
             text-decoration: none;
-            margin-right: 15px;
-            font-weight: bold;
+            color: white;
+            margin-right: 20px;
+            font-weight: 500;
         }
 
-        nav a:hover {
+        .nav-left a:hover,
+        .nav-right a:hover {
             color: #ff4c4c;
         }
 
-        .container {
-            padding: 20px;
+        .brand {
+            font-size: 20px;
+            font-weight: bold;
+            color: #ff4c4c;
         }
 
-        .flash {
-            color: red;
-            font-weight: bold;
-            padding: 10px 20px;
+        /* Container */
+        .container {
+            max-width: 1000px;
+            margin: auto;
+            padding: 40px 20px;
         }
+
+        /* Buttons */
+        .btn {
+            padding: 10px 16px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 500;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background-color: #ff4c4c;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #ff1f1f;
+        }
+
+        .btn-dark {
+            background-color: #333;
+            color: white;
+        }
+
+        .btn-dark:hover {
+            background-color: #555;
+        }
+
+        /* Flash messages */
+        .flash {
+            padding: 10px 15px;
+            margin-bottom: 20px;
+            border-radius: 6px;
+            background-color: #333;
+            color: #ff4c4c;
+        }
+
     </style>
 </head>
 <body>
 
-    <nav>
-        <a href="{{ url_for('main_bp.home') }}">Home</a>
+    <div class="navbar">
+        <div class="nav-left">
+            <span class="brand">Anime World 🌸</span>
+            <a href="{{ url_for('main_bp.home') }}">Home</a>
+            {% if "user_id" in session %}
+                <a href ="{{url_for('main_bp.search')}}">search</a>
+                <a href="{{ url_for('main_bp.dashboard') }}">Dashboard</a>
+                <a href="{{ url_for('main_bp.profile') }}">Profile</a>
+                <a href="{{ url_for('fav_bp.view_favorites') }}">Favorites</a> 
+            {% endif %}
+        </div>
 
-        {% if session.get("user_id") %}
-            <a href="{{ url_for('main_bp.dashboard') }}">Dashboard</a>
-            <a href="{{ url_for('auth_bp.logout') }}">Logout</a>
-        {% else %}
-            <a href="{{ url_for('auth_bp.login') }}">Login</a>
-            <a href="{{ url_for('auth_bp.register') }}">Register</a>
-        {% endif %}
-    </nav>
-
-    {% with messages = get_flashed_messages() %}
-        {% if messages %}
-            {% for message in messages %}
-                <p class="flash">{{ message }}</p>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
+        <div class="nav-right">
+            {% if "user_id" in session %}
+                <span style="margin-right:15px;">Hello, {{ session.get("username") }}</span>
+                <a href="{{ url_for('auth_bp.logout') }}" class="btn btn-dark">Logout</a>
+            {% else %}
+                <a href="{{ url_for('auth_bp.login') }}" class="btn btn-dark">Login</a>
+                <a href="{{ url_for('auth_bp.register') }}" class="btn btn-primary">Register</a>
+            {% endif %}
+        </div>
+    </div>
 
     <div class="container">
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="flash">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
         {% block content %}
         {% endblock %}
+
     </div>
 
 </body>

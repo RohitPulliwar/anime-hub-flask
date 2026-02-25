@@ -1,75 +1,67 @@
-from flask import Blueprint,render_template, request, redirect,flash,session,url_for
-import sqlite3
-from werkzeug.security import check_password_hash,generate_password_hash
+from flask import Blueprint, render_template, request, redirect, flash, session, url_for
+from werkzeug.security import check_password_hash, generate_password_hash
 from functools import wraps
-auth_bp= Blueprint("auth_bp",__name__)
+from app.db import create_user, get_user_by_username
 
-@auth_bp.route("/register", methods=["GET","POST"])
+auth_bp = Blueprint("auth_bp", __name__)
+
+
+@auth_bp.route("/register", methods=["GET", "POST"])
 def register():
-    if request.method=="POST":
-        username=request.form["username"]
-        password=request.form["password"]
+    if request.method == "POST":
+        username = request.form["username"]
+        password = request.form["password"]
+        if not username or not password:
+            flash("All fields are required")
+            return redirect(url_for("auth_bp.register"))
 
-        hashed_pass= generate_password_hash(password)
+        if len(password) < 6:
+            flash("Password must be at least 6 characters")
+            return redirect(url_for("auth_bp.register"))
 
-        conn=sqlite3.connect("database.db")
-        cursor=conn.cursor()
+        hashed_pass = generate_password_hash(password)
 
         try:
-            cursor.execute(
-                "INSERT INTO users (username , password) VALUES (?,?)", (username , hashed_pass)
-
-            )
-            conn.commit()
-            flash("REGISTRATION completed")
-            return redirect("/login")
+            create_user(username, hashed_pass)
+            flash("Registration completed")
+            return redirect(url_for("auth_bp.login"))
         except:
-            flash("USER ALREADY EXISTS")
-            
+            flash("User already exists")
 
-        finally:
-            conn.close()
     return render_template("register.html")
 
 
-@auth_bp.route("/login",methods=["GET","POST"])
+@auth_bp.route("/login", methods=["GET", "POST"])
 def login():
-    if request.method=="POST":
-           
-        username=request.form["username"]
-        password=request.form["password"]
+    if request.method == "POST":
+        username = request.form["username"]
+        password = request.form["password"]
 
-        conn= sqlite3.connect("database.db")
-        cursor=conn.cursor()
+        user = get_user_by_username(username)
 
-        cursor.execute(
-            "SELECT id , password FROM users WHERE username=?", (username,)
-                          )
-        user= cursor.fetchone()
-        conn.close()
-
-        if user and check_password_hash(user[1],password):
-            session["user_id"]= user[0]
-            flash("login successful")
-            return redirect("/dashboard")
+        if user and check_password_hash(user["password"], password):
+            session["user_id"] = user["id"]
+            session["username"] = user["username"]
+            flash("Login successful")
+            return redirect(url_for("main_bp.dashboard"))
         else:
-            flash("incorrect data")
+            flash("Incorrect data")
 
     return render_template("login.html")
 
 
 @auth_bp.route("/logout")
 def logout():
-    if "user_id" in session:
-        session.pop("user_id",None)
-        flash("logged out successfully")
+    session.clear()
+    flash("Logged out successfully")
     return redirect(url_for("main_bp.home"))
 
 
 def login_required(f):
     @wraps(f)
-    def wrapper(*args ,**kwargs):
+    def wrapper(*args, **kwargs):
         if "user_id" not in session:
+            flash("login first")
             return redirect(url_for("auth_bp.login"))
         return f(*args, **kwargs)
     return wrapper
