@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, redirect, flash, session,
 from werkzeug.security import check_password_hash, generate_password_hash
 from functools import wraps
 from app.db import create_user, get_user_by_username
+import sqlite3
 
 auth_bp = Blueprint("auth_bp", __name__)
 
@@ -9,8 +10,9 @@ auth_bp = Blueprint("auth_bp", __name__)
 @auth_bp.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
-        username = request.form["username"]
+        username = request.form["username"].strip()
         password = request.form["password"]
+
         if not username or not password:
             flash("All fields are required")
             return redirect(url_for("auth_bp.register"))
@@ -25,8 +27,9 @@ def register():
             create_user(username, hashed_pass)
             flash("Registration completed")
             return redirect(url_for("auth_bp.login"))
-        except:
-            flash("User already exists")
+        except sqlite3.IntegrityError:
+            flash("Username already exists")
+            return redirect(url_for("auth_bp.register"))
 
     return render_template("register.html")
 

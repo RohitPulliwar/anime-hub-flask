@@ -35,7 +35,9 @@
             {{ anime.synopsis }}
         </p>
 
+        <!-- FAVORITE BUTTON -->
         {% if "user_id" in session %}
+
             <button id="fav-btn"
                     style="
                         padding:10px 18px;
@@ -53,7 +55,9 @@
                 {% else %}
                     ❤️ Add to Favorites
                 {% endif %}
+
             </button>
+
         {% else %}
             <p style="margin-top:20px;">Login to manage favorites ❤️</p>
         {% endif %}
@@ -63,7 +67,6 @@
 
 {% if "user_id" in session %}
 <script>
-
 const animeData = {
     anime_id: {{ anime.mal_id | tojson }},
     anime_title: {{ anime.title | tojson }},
@@ -89,6 +92,9 @@ document.getElementById("fav-btn").addEventListener("click", function() {
         if (data.status === "removed") {
             document.getElementById("fav-btn").innerText = "❤️ Add to Favorites";
         }
+
+        // Optionally reload the profile page or data
+        // location.reload();
 
     });
 

@@ -1,8 +1,11 @@
 from flask import Flask
+from .db import init_db
 
 def create_app():
-    app= Flask(__name__)
-    app.secret_key="mykey"
+    app = Flask(__name__)
+    app.secret_key = "mykey"
+
+    init_db()
 
     from .routes.main_route import main_bp
     from .routes.auth_route import auth_bp

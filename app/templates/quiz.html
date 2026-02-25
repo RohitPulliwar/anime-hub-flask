@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Quiz{% endblock %}
+
+{% block content %}
+
+<div style="max-width:800px; margin:auto; padding:40px;">
+
+    <h1 style="margin-bottom:30px; text-align:center;">
+        Anime Quiz
+    </h1>
+
+    <form method="POST">
+
+        {% for question in questions %}
+        {% set q_index = loop.index0 %}
+
+        <div style="
+            background: rgba(255,255,255,0.05);
+            padding:20px;
+            border-radius:12px;
+            margin-bottom:25px;
+        ">
+
+            <h3 style="margin-bottom:15px;">
+                {{ loop.index }}. {{ question.question }}
+            </h3>
+
+            {% for option in question.options %}
+
+                <div style="margin-bottom:8px;">
+                    <label>
+                        <input type="radio"
+                               name="question-{{ q_index }}"
+                               value="{{ option }}"
+                               required>
+
+                        {{ option }}
+                    </label>
+                </div>
+
+            {% endfor %}
+
+        </div>
+
+        {% endfor %}
+
+        <div style="text-align:center;">
+            <button type="submit"
+                    style="
+                        padding:10px 20px;
+                        border:none;
+                        border-radius:8px;
+                        background: linear-gradient(45deg, #00ffff, #ff00ff);
+                        color:black;
+                        font-weight:bold;
+                        cursor:pointer;
+                    ">
+                Submit Quiz
+            </button>
+        </div>
+
+    </form>
+
+</div>
+
+{% endblock %}

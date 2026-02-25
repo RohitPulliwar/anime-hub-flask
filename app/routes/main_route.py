@@ -43,7 +43,7 @@ main_bp= Blueprint("main_bp", __name__)
 @main_bp.route("/")
 def home():
 
-    # Trending Anime 
+    
     url = "https://api.jikan.moe/v4/anime?order_by=popularity&sort=asc&limit=12"
     response = requests.get(url)
     trending = response.json().get("data", [])
@@ -56,7 +56,7 @@ def dashboard():
     username = session.get("username")
     current_time = time.time()
 
-    # top
+   
     if "top" in dashboard_cache and current_time - dashboard_cache["top_time"] < CACHE_TIMEOUT:
         top_anime = dashboard_cache["top"]
     else:
@@ -66,7 +66,7 @@ def dashboard():
         dashboard_cache["top"] = top_anime
         dashboard_cache["top_time"] = current_time
 
-    # seasonal
+ 
     if "seasonal" in dashboard_cache and current_time - dashboard_cache["seasonal_time"] < CACHE_TIMEOUT:
         seasonal_anime = dashboard_cache["seasonal"]
     else:
@@ -76,7 +76,7 @@ def dashboard():
         dashboard_cache["seasonal"] = seasonal_anime
         dashboard_cache["seasonal_time"] = current_time
 
-    # pops
+   
     if "popular" in dashboard_cache and current_time - dashboard_cache["popular_time"] < CACHE_TIMEOUT:
         popular_anime = dashboard_cache["popular"]
     else:
@@ -107,7 +107,7 @@ def search():
             data = response.json()
             results = data.get("data", [])
 
-            # Get user favorite ids
+            
             if "user_id" in session:
                 conn = get_db_connection()
                 cursor = conn.cursor()
@@ -167,11 +167,11 @@ def profile():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # 🔹 Get user
+    
     cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
     user = cursor.fetchone()
 
-    # 🔹 Get favorites
+   
     cursor.execute(
         "SELECT anime_id, anime_title, anime_image FROM favorites WHERE user_id=?",
         (user_id,)
@@ -180,7 +180,7 @@ def profile():
 
     total_favorites = len(favorites)
 
-    # 🔹 Get quiz count
+   
     cursor.execute(
         "SELECT COUNT(*) as total FROM quiz_attempts WHERE user_id=?",
         (user_id,)
@@ -190,7 +190,7 @@ def profile():
 
     conn.close()
 
-    # 🔹 XP Percentage Calculation
+   
     if user["next_level_xp"] > 0:
         xp_percentage = int(
             (user["current_xp"] / user["next_level_xp"]) * 100
