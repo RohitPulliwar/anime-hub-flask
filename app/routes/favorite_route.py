@@ -21,15 +21,3 @@ def toggle_favorite():
     else:
         add_favorite_db(user_id, anime_id, anime_title, anime_image)
         return jsonify({"status": "added"})
-
-
-@fav_bp.route("/favorites")
-@login_required
-def view_favorites():
-
-    user_id = session.get("user_id")
-    from app.db import get_user_favorites
-    favorites = get_user_favorites(user_id)
-
-    from flask import render_template
-    return render_template("favorites.html", favorites=favorites)

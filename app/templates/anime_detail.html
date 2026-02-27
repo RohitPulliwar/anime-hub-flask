@@ -6,10 +6,78 @@
 
 <div style="display:flex; gap:40px; flex-wrap:wrap; padding:40px;">
 
-    <!-- Poster -->
-    <div>
+    <!-- Poster + Actions -->
+    <div style="display:flex; gap:15px; align-items:flex-start;">
+
+        <!-- Poster -->
         <img src="{{ anime.images.jpg.image_url }}"
              style="width:300px; border-radius:12px;">
+
+        {% if "user_id" in session %}
+        <div style="display:flex; flex-direction:column; gap:10px;">
+
+            <button id="fav-btn"
+                    style="
+                        padding:10px 15px;
+                        border:none;
+                        background:#222;
+                        color:white;
+                        border-radius:6px;
+                        cursor:pointer;
+                        font-weight:bold;
+                        white-space:nowrap;
+                    ">
+                {% if is_favorite %}
+                    ❌ Remove
+                {% else %}
+                    ❤️ Add
+                {% endif %}
+            </button>
+
+            <form method="POST">
+                <select name="status"
+                        style="
+                            padding:8px;
+                            border-radius:6px;
+                            border:1px solid #444;
+                            background:#111;
+                            color:white;
+                            margin-bottom:5px;
+                        ">
+                    <option value="">-- Select --</option>
+
+                    <option value="Watching" {% if my_status == "Watching" %}selected{% endif %}>
+                        Watching
+                    </option>
+                    <option value="Completed" {% if my_status == "Completed" %}selected{% endif %}>
+                        Completed
+                    </option>
+                    <option value="Plan to Watch" {% if my_status == "Plan to Watch" %}selected{% endif %}>
+                        Plan to Watch
+                    </option>
+                    <option value="Dropped" {% if my_status == "Dropped" %}selected{% endif %}>
+                        Dropped
+                    </option>
+                </select>
+
+                <button type="submit"
+                        style="
+                            width:100%;
+                            padding:8px;
+                            border:none;
+                            background:#444;
+                            color:white;
+                            border-radius:6px;
+                            cursor:pointer;
+                            font-weight:bold;
+                        ">
+                    Save
+                </button>
+            </form>
+
+        </div>
+        {% endif %}
+
     </div>
 
     <!-- Details -->
@@ -35,33 +103,6 @@
             {{ anime.synopsis }}
         </p>
 
-        <!-- FAVORITE BUTTON -->
-        {% if "user_id" in session %}
-
-            <button id="fav-btn"
-                    style="
-                        padding:10px 18px;
-                        border:none;
-                        background:#222;
-                        color:white;
-                        border-radius:6px;
-                        cursor:pointer;
-                        margin-top:20px;
-                        font-weight:bold;
-                    ">
-
-                {% if is_favorite %}
-                    ❌ Remove from Favorites
-                {% else %}
-                    ❤️ Add to Favorites
-                {% endif %}
-
-            </button>
-
-        {% else %}
-            <p style="margin-top:20px;">Login to manage favorites ❤️</p>
-        {% endif %}
-
     </div>
 </div>
 
@@ -86,15 +127,12 @@ document.getElementById("fav-btn").addEventListener("click", function() {
     .then(data => {
 
         if (data.status === "added") {
-            document.getElementById("fav-btn").innerText = "❌ Remove from Favorites";
+            document.getElementById("fav-btn").innerText = "❌ Remove";
         }
 
         if (data.status === "removed") {
-            document.getElementById("fav-btn").innerText = "❤️ Add to Favorites";
+            document.getElementById("fav-btn").innerText = "❤️ Add";
         }
-
-        // Optionally reload the profile page or data
-        // location.reload();
 
     });
 

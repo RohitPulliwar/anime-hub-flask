@@ -24,6 +24,17 @@ def init_db():
     );
     """)
 
+    # Backfill new profile customization columns for existing databases.
+    existing_columns = {
+        row["name"] for row in conn.execute("PRAGMA table_info(users)").fetchall()
+    }
+    if "bio" not in existing_columns:
+        conn.execute("ALTER TABLE users ADD COLUMN bio TEXT DEFAULT ''")
+    if "banner_url" not in existing_columns:
+        conn.execute("ALTER TABLE users ADD COLUMN banner_url TEXT DEFAULT ''")
+    if "theme_color" not in existing_columns:
+        conn.execute("ALTER TABLE users ADD COLUMN theme_color TEXT DEFAULT '#40e0d0'")
+
     conn.execute("""
     CREATE TABLE IF NOT EXISTS favorites (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -45,6 +56,16 @@ def init_db():
         FOREIGN KEY (user_id) REFERENCES users(id)
     );
     """)
+
+    conn.execute("""
+CREATE TABLE IF NOT EXISTS user_anime_status (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    anime_id INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+""")
 
     conn.commit()
     conn.close()
@@ -177,3 +198,46 @@ def update_user_avatar(user_id, avatar_filename):
     )
     conn.commit()
     conn.close()
+
+def save_status_db(user_id, anime_id, status):
+    conn = get_db_connection()
+
+    existing = conn.execute(
+        "SELECT id FROM user_anime_status WHERE user_id=? AND anime_id=?",
+        (user_id, anime_id)
+    ).fetchone()
+
+    if existing:
+        conn.execute(
+            "UPDATE user_anime_status SET status=? WHERE user_id=? AND anime_id=?",
+            (status, user_id, anime_id)
+        )
+    else:
+        conn.execute(
+            "INSERT INTO user_anime_status (user_id, anime_id, status) VALUES (?, ?, ?)",
+            (user_id, anime_id, status)
+        )
+
+    conn.commit()
+    conn.close()
+
+def get_status_db(user_id, anime_id):
+    conn = get_db_connection()
+    result = conn.execute(
+        "SELECT status FROM user_anime_status WHERE user_id=? AND anime_id=?",
+        (user_id, anime_id)
+    ).fetchone()
+    conn.close()
+    return result["status"] if result else None
+
+def get_user_favorites_with_status(user_id):
+    conn = get_db_connection()
+    results = conn.execute("""
+        SELECT f.*, s.status
+        FROM favorites f
+        LEFT JOIN user_anime_status s
+        ON f.user_id = s.user_id AND f.anime_id = s.anime_id
+        WHERE f.user_id = ?
+    """, (user_id,)).fetchall()
+    conn.close()
+    return results

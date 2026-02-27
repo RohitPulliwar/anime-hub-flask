@@ -1,10 +1,12 @@
-from flask import Blueprint, render_template, redirect , session, flash,request,url_for
+from flask import Blueprint, render_template, redirect , session, flash,request,url_for,current_app
 from app.routes.auth_route import login_required
 import requests
 import sqlite3
 import time 
-from app.db import update_user_avatar,get_user_by_id,get_db_connection
+from app.db import update_user_avatar,get_status_db,save_status_db,get_user_by_id,get_db_connection,get_user_favorites_with_status
 import os
+import re
+from uuid import uuid4
 
 
 quiz_questions = [
@@ -128,9 +130,14 @@ def search():
         favorite_ids=favorite_ids
     )
 
-@main_bp.route("/anime/<int:anime_id>")
+@main_bp.route("/anime/<int:anime_id>",methods=["GET","POST"])
 def anime_detail(anime_id):
 
+
+    if request.method=="POST" and "user_id" in session:
+        status=request.form.get("status")
+        if status:
+            save_status_db(session.get("user_id"), anime_id,status)
     url = f"https://api.jikan.moe/v4/anime/{anime_id}"
     response = requests.get(url)
     data = response.json()
@@ -152,13 +159,17 @@ def anime_detail(anime_id):
 
         conn.close()
 
+    my_status=None
+    if "user_id" in session:
+        my_status=get_status_db(session["user_id"],anime_id)
     return render_template(
         "anime_detail.html",
         anime=anime,
-        is_favorite=is_favorite
+        is_favorite=is_favorite,
+        my_status=my_status
     )
 
-@main_bp.route("/profile")
+@main_bp.route("/profile", methods=["GET", "POST"])
 @login_required
 def profile():
 
@@ -167,30 +178,73 @@ def profile():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    
+    if request.method == "POST":
+        cursor.execute("SELECT banner_url FROM users WHERE id = ?", (user_id,))
+        current_user = cursor.fetchone()
+        bio = (request.form.get("bio") or "").strip()
+        banner_url = current_user["banner_url"] if current_user else ""
+        theme_color = (request.form.get("theme_color") or "").strip()
+        banner_file = request.files.get("banner_file")
+
+        if len(bio) > 220:
+            bio = bio[:220]
+
+        if banner_file and banner_file.filename:
+            ext = banner_file.filename.rsplit(".", 1)[-1].lower() if "." in banner_file.filename else ""
+            allowed_exts = {"png", "jpg", "jpeg", "webp", "gif"}
+            if ext in allowed_exts:
+                banner_folder = os.path.join(current_app.root_path, "static", "profile_banners")
+                os.makedirs(banner_folder, exist_ok=True)
+                filename = f"{uuid4().hex}.{ext}"
+                save_path = os.path.join(banner_folder, filename)
+                banner_file.save(save_path)
+                banner_url = url_for("static", filename=f"profile_banners/{filename}")
+            else:
+                flash("Invalid banner format. Use PNG, JPG, JPEG, WEBP, or GIF.")
+
+        if not re.fullmatch(r"#[0-9A-Fa-f]{6}", theme_color):
+            theme_color = "#40e0d0"
+
+        cursor.execute(
+            """
+            UPDATE users
+            SET bio = ?, banner_url = ?, theme_color = ?
+            WHERE id = ?
+            """,
+            (bio, banner_url, theme_color, user_id),
+        )
+        conn.commit()
+        flash("Profile style updated.")
+
     cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
     user = cursor.fetchone()
 
-   
-    cursor.execute(
-        "SELECT anime_id, anime_title, anime_image FROM favorites WHERE user_id=?",
-        (user_id,)
-    )
-    favorites = cursor.fetchall()
-
+    favorites = get_user_favorites_with_status(user_id)
     total_favorites = len(favorites)
 
-   
+    status_order = ["Watching", "Completed", "Plan to Watch", "Dropped", "Not Set"]
+    grouped_favorites = {status: [] for status in status_order}
+
+    for fav in favorites:
+        status = fav["status"] if fav["status"] else "Not Set"
+        if status not in grouped_favorites:
+            grouped_favorites["Not Set"].append(fav)
+        else:
+            grouped_favorites[status].append(fav)
+
+    status_counts = {status: len(grouped_favorites[status]) for status in status_order}
+    completed_count = status_counts["Completed"]
+    completion_rate = int((completed_count / total_favorites) * 100) if total_favorites else 0
+
     cursor.execute(
         "SELECT COUNT(*) as total FROM quiz_attempts WHERE user_id=?",
-        (user_id,)
+        (user_id,),
     )
     quiz_result = cursor.fetchone()
     quiz_count = quiz_result["total"] if quiz_result else 0
 
     conn.close()
 
-   
     if user["next_level_xp"] > 0:
         xp_percentage = int(
             (user["current_xp"] / user["next_level_xp"]) * 100
@@ -203,14 +257,16 @@ def profile():
         user=user,
         xp_percentage=xp_percentage,
         favorites=favorites,
+        grouped_favorites=grouped_favorites,
+        status_order=status_order,
+        status_counts=status_counts,
+        completion_rate=completion_rate,
         total_favorites=total_favorites,
         quiz_count=quiz_count,
         fav_count=total_favorites,
         badges=[],
-        avatar_items=[]
+        avatar_items=[],
     )
-
-
 
 @main_bp.route("/choose-avatar", methods=["GET", "POST"])
 @login_required
