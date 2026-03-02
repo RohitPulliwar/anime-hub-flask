@@ -5,7 +5,7 @@
 {% block content %}
 
 <div style="padding:20px 40px 0;">
-    <a href="{{ request.referrer or url_for('main_bp.home') }}"
+    <a href="{{ request.referrer or url_for('main_bp.home', media=current_media) }}"
        style="
             text-decoration:none;
             display:inline-block;
@@ -19,17 +19,12 @@
 </div>
 
 <div style="display:flex; gap:40px; flex-wrap:wrap; padding:40px;">
-
-    <!-- Poster + Actions -->
     <div style="display:flex; gap:15px; align-items:flex-start;">
-
-        <!-- Poster -->
         <img src="{{ anime.images.jpg.image_url }}"
              style="width:300px; border-radius:12px;">
 
         {% if "user_id" in session %}
         <div style="display:flex; flex-direction:column; gap:10px;">
-
             <button id="fav-btn"
                     style="
                         padding:10px 15px;
@@ -42,13 +37,13 @@
                         white-space:nowrap;
                     ">
                 {% if is_favorite %}
-                    ❌ Remove
+                    Remove
                 {% else %}
-                    ❤️ Add
+                    Add
                 {% endif %}
             </button>
 
-            <form method="POST">
+            <form method="POST" action="{{ url_for('main_bp.anime_detail', anime_id=anime.mal_id, media=current_media) }}">
                 <select name="status"
                         style="
                             padding:8px;
@@ -88,24 +83,24 @@
                     Save
                 </button>
             </form>
-
         </div>
         {% endif %}
-
     </div>
 
-    <!-- Details -->
     <div style="flex:1; min-width:300px;">
-
         <h1>{{ anime.title }}</h1>
 
-        <p><strong>⭐ Score:</strong> {{ anime.score or "N/A" }}</p>
-        <p><strong>🎬 Episodes:</strong> {{ anime.episodes or "Unknown" }}</p>
-        <p><strong>📺 Type:</strong> {{ anime.type }}</p>
-        <p><strong>📅 Status:</strong> {{ anime.status }}</p>
+        <p><strong>Type:</strong> {{ media_label }}</p>
+        <p><strong>Score:</strong> {{ anime.score or "N/A" }}</p>
+        {% if current_media == "anime" %}
+        <p><strong>Episodes:</strong> {{ anime.episodes or "Unknown" }}</p>
+        {% else %}
+        <p><strong>Chapters:</strong> {{ anime.chapters or "Unknown" }}</p>
+        {% endif %}
+        <p><strong>Status:</strong> {{ anime.status }}</p>
 
         <p>
-            <strong>🎭 Genres:</strong>
+            <strong>Genres:</strong>
             {% for genre in anime.genres %}
                 {{ genre.name }}{% if not loop.last %}, {% endif %}
             {% endfor %}
@@ -116,7 +111,6 @@
         <p style="line-height:1.6;">
             {{ anime.synopsis }}
         </p>
-
     </div>
 </div>
 
@@ -125,11 +119,11 @@
 const animeData = {
     anime_id: {{ anime.mal_id | tojson }},
     anime_title: {{ anime.title | tojson }},
-    anime_image: {{ anime.images.jpg.image_url | tojson }}
+    anime_image: {{ anime.images.jpg.image_url | tojson }},
+    media_type: {{ current_media | tojson }}
 };
 
 document.getElementById("fav-btn").addEventListener("click", function() {
-
     fetch("{{ url_for('fav_bp.toggle_favorite') }}", {
         method: "POST",
         headers: {
@@ -139,17 +133,14 @@ document.getElementById("fav-btn").addEventListener("click", function() {
     })
     .then(response => response.json())
     .then(data => {
-
         if (data.status === "added") {
-            document.getElementById("fav-btn").innerText = "❌ Remove";
+            document.getElementById("fav-btn").innerText = "Remove";
         }
 
         if (data.status === "removed") {
-            document.getElementById("fav-btn").innerText = "❤️ Add";
+            document.getElementById("fav-btn").innerText = "Add";
         }
-
     });
-
 });
 </script>
 {% endif %}

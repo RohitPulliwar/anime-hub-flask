@@ -31,32 +31,56 @@ API_CACHE = {}
 CACHE_TTL_SECONDS = 300
 VALID_STATUS = ["Watching", "Completed", "Plan to Watch", "Dropped", "Not Set"]
 DEFAULT_THEME = "#40e0d0"
+MEDIA_LABELS = {
+    "anime": "Anime",
+    "manga": "Manga",
+    "lightnovel": "Light Novel",
+}
+PROFILE_MEDIA_ORDER = ["anime", "manga", "lightnovel"]
 
 
-def _fetch_json(url):
-    response = requests.get(url, timeout=15)
+def _get_media_type():
+    media_type = (request.args.get("media") or "anime").strip().lower()
+    return media_type if media_type in MEDIA_LABELS else "anime"
+
+
+def _media_extra_params(media_type):
+    if media_type == "manga":
+        return {"type": "manga"}
+    if media_type == "lightnovel":
+        return {"type": "novel"}
+    return {}
+
+
+def _api_resource(media_type):
+    return "anime" if media_type == "anime" else "manga"
+
+
+def _fetch_json(url, params=None):
+    response = requests.get(url, params=params, timeout=15)
     response.raise_for_status()
     return response.json()
 
 
-def _fetch_cached_list(cache_key, url, limit=None):
+def _fetch_cached_list(cache_key, url, params=None, limit=None):
     now = time.time()
-    cached = API_CACHE.get(cache_key)
+    full_cache_key = f"{cache_key}:{url}:{str(params)}:{limit}"
+    cached = API_CACHE.get(full_cache_key)
 
     if cached and now - cached["at"] < CACHE_TTL_SECONDS:
         data = cached["payload"]
     else:
-        data = _fetch_json(url).get("data", [])
-        API_CACHE[cache_key] = {"payload": data, "at": now}
+        data = _fetch_json(url, params=params).get("data", [])
+        API_CACHE[full_cache_key] = {"payload": data, "at": now}
 
     return data[:limit] if limit else data
 
 
-def _load_favorite_ids(user_id):
+def _load_favorite_ids(user_id, media_type):
     connection = get_db_connection()
     rows = connection.execute(
-        "SELECT anime_id FROM favorites WHERE user_id = ?",
-        (user_id,),
+        "SELECT anime_id FROM favorites WHERE user_id = ? AND media_type = ?",
+        (user_id, media_type),
     ).fetchall()
     connection.close()
     return [row[0] for row in rows]
@@ -115,28 +139,60 @@ def _build_profile_groups(favorites):
 
 @main_bp.route("/")
 def home():
-    trending = _fetch_json(
-        "https://api.jikan.moe/v4/anime?order_by=popularity&sort=asc&limit=12"
-    ).get("data", [])
-    favorite_ids = _load_favorite_ids(session["user_id"]) if "user_id" in session else []
-    return render_template("index.html", trending=trending, favorite_ids=favorite_ids)
+    media_type = _get_media_type()
+    resource = _api_resource(media_type)
+    params = {"order_by": "popularity", "sort": "asc", "limit": 12}
+    params.update(_media_extra_params(media_type))
+
+    trending = _fetch_json(f"https://api.jikan.moe/v4/{resource}", params=params).get("data", [])
+    favorite_ids = (
+        _load_favorite_ids(session["user_id"], media_type) if "user_id" in session else []
+    )
+
+    return render_template(
+        "index.html",
+        trending=trending,
+        favorite_ids=favorite_ids,
+        current_media=media_type,
+        media_label=MEDIA_LABELS[media_type],
+    )
 
 
 @main_bp.route("/dashboard")
 @login_required
 def dashboard():
+    media_type = _get_media_type()
+    resource = _api_resource(media_type)
     username = session.get("username")
-    favorite_ids = _load_favorite_ids(session["user_id"])
-    top_anime = _fetch_cached_list("top", "https://api.jikan.moe/v4/top/anime?limit=10")
-    seasonal_anime = _fetch_cached_list(
-        "seasonal",
-        "https://api.jikan.moe/v4/seasons/now",
-        limit=10,
+    favorite_ids = _load_favorite_ids(session["user_id"], media_type)
+
+    top_params = {"limit": 10}
+    top_params.update(_media_extra_params(media_type))
+
+    popular_params = {"order_by": "popularity", "sort": "asc", "limit": 10}
+    popular_params.update(_media_extra_params(media_type))
+
+    top_anime = _fetch_cached_list(
+        f"top:{media_type}",
+        f"https://api.jikan.moe/v4/top/{resource}",
+        params=top_params,
     )
+
+    if media_type == "anime":
+        seasonal_anime = _fetch_cached_list(
+            "seasonal:anime",
+            "https://api.jikan.moe/v4/seasons/now",
+            limit=10,
+        )
+    else:
+        seasonal_anime = []
+
     popular_anime = _fetch_cached_list(
-        "popular",
-        "https://api.jikan.moe/v4/anime?order_by=popularity&sort=asc&limit=10",
+        f"popular:{media_type}",
+        f"https://api.jikan.moe/v4/{resource}",
+        params=popular_params,
     )
+
     return render_template(
         "dashboard.html",
         username=username,
@@ -144,32 +200,50 @@ def dashboard():
         top_anime=top_anime,
         seasonal_anime=seasonal_anime,
         popular_anime=popular_anime,
+        current_media=media_type,
+        media_label=MEDIA_LABELS[media_type],
     )
 
 
 @main_bp.route("/search", methods=["GET", "POST"])
 def search():
+    media_type = _get_media_type()
+    resource = _api_resource(media_type)
     results = []
     favorite_ids = []
 
     if request.method == "POST":
         query = (request.form.get("anime_name") or "").strip()
         if query:
-            results = _fetch_json(f"https://api.jikan.moe/v4/anime?q={query}").get("data", [])
+            search_params = {"q": query}
+            search_params.update(_media_extra_params(media_type))
+            results = _fetch_json(
+                f"https://api.jikan.moe/v4/{resource}",
+                params=search_params,
+            ).get("data", [])
             if "user_id" in session:
-                favorite_ids = _load_favorite_ids(session["user_id"])
+                favorite_ids = _load_favorite_ids(session["user_id"], media_type)
 
-    return render_template("search.html", results=results, favorite_ids=favorite_ids)
+    return render_template(
+        "search.html",
+        results=results,
+        favorite_ids=favorite_ids,
+        current_media=media_type,
+        media_label=MEDIA_LABELS[media_type],
+    )
 
 
 @main_bp.route("/anime/<int:anime_id>", methods=["GET", "POST"])
 def anime_detail(anime_id):
+    media_type = _get_media_type()
+    resource = _api_resource(media_type)
+
     if request.method == "POST" and "user_id" in session:
         selected_status = request.form.get("status")
         if selected_status:
-            save_status_db(session["user_id"], anime_id, selected_status)
+            save_status_db(session["user_id"], anime_id, selected_status, media_type)
 
-    anime = _fetch_json(f"https://api.jikan.moe/v4/anime/{anime_id}").get("data")
+    anime = _fetch_json(f"https://api.jikan.moe/v4/{resource}/{anime_id}").get("data")
 
     is_favorite = False
     my_status = None
@@ -178,19 +252,24 @@ def anime_detail(anime_id):
         connection = get_db_connection()
         is_favorite = (
             connection.execute(
-                "SELECT 1 FROM favorites WHERE user_id = ? AND anime_id = ?",
-                (session["user_id"], anime_id),
+                """
+                SELECT 1 FROM favorites
+                WHERE user_id = ? AND anime_id = ? AND media_type = ?
+                """,
+                (session["user_id"], anime_id, media_type),
             ).fetchone()
             is not None
         )
         connection.close()
-        my_status = get_status_db(session["user_id"], anime_id)
+        my_status = get_status_db(session["user_id"], anime_id, media_type)
 
     return render_template(
         "anime_detail.html",
         anime=anime,
         is_favorite=is_favorite,
         my_status=my_status,
+        current_media=media_type,
+        media_label=MEDIA_LABELS[media_type],
     )
 
 
@@ -209,6 +288,12 @@ def profile():
     favorites = get_user_favorites_with_status(user_id)
     grouped_favorites = _build_profile_groups(favorites)
     status_counts = {status: len(grouped_favorites[status]) for status in VALID_STATUS}
+    media_counts = {media: 0 for media in PROFILE_MEDIA_ORDER}
+    for fav in favorites:
+        media_type = (fav["media_type"] or "anime").lower()
+        if media_type not in media_counts:
+            media_counts[media_type] = 0
+        media_counts[media_type] += 1
     total_favorites = len(favorites)
     completion_rate = (
         int((status_counts["Completed"] / total_favorites) * 100)
@@ -237,12 +322,16 @@ def profile():
         grouped_favorites=grouped_favorites,
         status_order=VALID_STATUS,
         status_counts=status_counts,
+        media_counts=media_counts,
+        media_order=PROFILE_MEDIA_ORDER,
+        media_labels=MEDIA_LABELS,
         completion_rate=completion_rate,
         total_favorites=total_favorites,
         quiz_count=quiz_count,
         fav_count=total_favorites,
         badges=[],
         avatar_items=[],
+        current_media="anime",
     )
 
 

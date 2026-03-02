@@ -1,16 +1,16 @@
 {% extends "base.html" %}
 
-{% block title %}Search Anime{% endblock %}
+{% block title %}Search {{ media_label }}{% endblock %}
 
 {% block content %}
 
-<h2 style="margin-bottom:20px;">Search Anime</h2>
+<h2 style="margin-bottom:20px;">Search {{ media_label }}</h2>
 
-<form method="POST" action="{{ url_for('main_bp.search') }}"
+<form method="POST" action="{{ url_for('main_bp.search', media=current_media) }}"
       style="margin-bottom:40px; display:flex; gap:10px; max-width:500px;">
     <input type="text"
            name="anime_name"
-           placeholder="Enter anime name..."
+           placeholder="Enter {{ media_label|lower }} name..."
            required
            style="
                 flex:1;
@@ -47,11 +47,25 @@
             overflow:hidden;
             box-shadow:0 4px 10px rgba(0,0,0,0.5);
         ">
-            <a href="{{ url_for('main_bp.anime_detail', anime_id=anime.mal_id) }}">
+            <a href="{{ url_for('main_bp.anime_detail', anime_id=anime.mal_id, media=current_media) }}">
                 <img src="{{ anime.images.jpg.image_url }}"
                      alt="{{ anime.title }}"
                      style="width:100%; height:300px; object-fit:cover;">
             </a>
+
+            <div style="
+                position:absolute;
+                bottom:10px;
+                left:10px;
+                background:rgba(0,0,0,0.72);
+                border:1px solid #555;
+                padding:4px 8px;
+                border-radius:999px;
+                font-size:11px;
+                letter-spacing:0.6px;
+            ">
+                {{ media_label|upper }}
+            </div>
 
             {% if "user_id" in session %}
             <button
@@ -59,6 +73,7 @@
                 data-anime-id="{{ anime.mal_id }}"
                 data-anime-title="{{ anime.title }}"
                 data-anime-image="{{ anime.images.jpg.image_url }}"
+                data-media-type="{{ current_media }}"
                 style="
                     position:absolute;
                     top:10px;
@@ -85,10 +100,14 @@
                     Score: {{ anime.score or "N/A" }}
                 </p>
                 <p style="color:gray; font-size:14px;">
+                    {% if current_media == "anime" %}
                     Episodes: {{ anime.episodes or "Unknown" }}
+                    {% else %}
+                    Chapters: {{ anime.chapters or "Unknown" }}
+                    {% endif %}
                 </p>
                 <p style="color:gray; font-size:14px; margin-bottom:10px;">
-                    Type: {{ anime.type }}
+                    Type: {{ anime.type or "Unknown" }}
                 </p>
 
                 {% if "user_id" not in session %}
@@ -112,7 +131,8 @@ document.querySelectorAll(".favorite-btn").forEach((button) => {
         const payload = {
             anime_id: Number(button.dataset.animeId),
             anime_title: button.dataset.animeTitle,
-            anime_image: button.dataset.animeImage
+            anime_image: button.dataset.animeImage,
+            media_type: button.dataset.mediaType
         };
 
         const response = await fetch("{{ url_for('fav_bp.toggle_favorite') }}", {

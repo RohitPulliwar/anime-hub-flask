@@ -491,13 +491,21 @@
     </section>
 
     <section class="panel library">
-        <h2 class="library-title">My Anime Library</h2>
+        <h2 class="library-title">My Media Library</h2>
 
         {% if favorites %}
             <div class="controls">
                 <button class="tab active" data-filter="All">All ({{ fav_count }})</button>
                 {% for status in status_order %}
                     <button class="tab" data-filter="{{ status }}">{{ status }} ({{ status_counts[status] }})</button>
+                {% endfor %}
+            </div>
+            <div class="controls" style="margin-top:-6px; margin-bottom:18px;">
+                <button class="tab media-tab active" data-media-filter="all">All Media ({{ fav_count }})</button>
+                {% for media in media_order %}
+                    <button class="tab media-tab" data-media-filter="{{ media }}">
+                        {{ media_labels[media] }} ({{ media_counts[media] }})
+                    </button>
                 {% endfor %}
             </div>
 
@@ -509,13 +517,16 @@
                     <div class="status-block" data-status="{{ status }}">
                         <div class="status-head">
                             <h3 class="status-title">{{ status }}</h3>
-                            <span class="status-count">{{ status_favorites|length }} anime</span>
+                            <span class="status-count">{{ status_favorites|length }} items</span>
                         </div>
                         <div class="grid">
                             {% for fav in status_favorites %}
-                                <a class="card" data-title="{{ fav['anime_title']|lower }}" href="{{ url_for('main_bp.anime_detail', anime_id=fav['anime_id']) }}">
+                                <a class="card" data-title="{{ fav['anime_title']|lower }}" data-media="{{ (fav['media_type'] if fav['media_type'] else 'anime')|lower }}" href="{{ url_for('main_bp.anime_detail', anime_id=fav['anime_id'], media=fav['media_type']) }}">
                                     <img src="{{ fav['anime_image'] }}" alt="{{ fav['anime_title'] }}">
                                     <p>{{ fav['anime_title'] }}</p>
+                                    <p style="color:#9ebac7; font-size:11px; margin-top:4px; letter-spacing:0.6px;">
+                                        {{ (fav['media_type'] if fav['media_type'] else 'anime')|upper }}
+                                    </p>
                                 </a>
                             {% endfor %}
                         </div>
@@ -529,10 +540,12 @@
 </div>
 
 <script>
-const tabs = document.querySelectorAll(".tab");
+const tabs = document.querySelectorAll(".tab:not(.media-tab)");
 const blocks = document.querySelectorAll(".status-block");
 const searchInput = document.getElementById("searchInput");
+const mediaTabs = document.querySelectorAll(".media-tab");
 let activeFilter = "All";
+let activeMediaFilter = "all";
 
 function applyFilters() {
     const query = (searchInput ? searchInput.value.trim().toLowerCase() : "");
@@ -544,9 +557,11 @@ function applyFilters() {
 
         cards.forEach((card) => {
             const title = card.dataset.title || "";
+            const media = card.dataset.media || "anime";
             const matchesSearch = !query || title.includes(query);
-            card.style.display = matchesSearch ? "block" : "none";
-            if (matchesSearch) visibleCards += 1;
+            const matchesMedia = activeMediaFilter === "all" || activeMediaFilter === media;
+            card.style.display = matchesSearch && matchesMedia ? "block" : "none";
+            if (matchesSearch && matchesMedia) visibleCards += 1;
         });
 
         const matchesStatus = activeFilter === "All" || activeFilter === status;
@@ -559,6 +574,15 @@ tabs.forEach((tab) => {
         tabs.forEach((x) => x.classList.remove("active"));
         tab.classList.add("active");
         activeFilter = tab.dataset.filter;
+        applyFilters();
+    });
+});
+
+mediaTabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+        mediaTabs.forEach((x) => x.classList.remove("active"));
+        tab.classList.add("active");
+        activeMediaFilter = tab.dataset.mediaFilter;
         applyFilters();
     });
 });

@@ -9,10 +9,12 @@ def get_db_connection():
     return connection
 
 
+def _get_existing_columns(connection, table_name):
+    return {row["name"] for row in connection.execute(f"PRAGMA table_info({table_name})").fetchall()}
+
+
 def _ensure_user_profile_columns(connection):
-    existing_columns = {
-        row["name"] for row in connection.execute("PRAGMA table_info(users)").fetchall()
-    }
+    existing_columns = _get_existing_columns(connection, "users")
 
     if "bio" not in existing_columns:
         connection.execute("ALTER TABLE users ADD COLUMN bio TEXT DEFAULT ''")
@@ -20,6 +22,20 @@ def _ensure_user_profile_columns(connection):
         connection.execute("ALTER TABLE users ADD COLUMN banner_url TEXT DEFAULT ''")
     if "theme_color" not in existing_columns:
         connection.execute("ALTER TABLE users ADD COLUMN theme_color TEXT DEFAULT '#40e0d0'")
+
+
+def _ensure_media_columns(connection):
+    favorites_columns = _get_existing_columns(connection, "favorites")
+    if "media_type" not in favorites_columns:
+        connection.execute("ALTER TABLE favorites ADD COLUMN media_type TEXT DEFAULT 'anime'")
+    connection.execute("UPDATE favorites SET media_type = 'anime' WHERE media_type IS NULL OR media_type = ''")
+
+    status_columns = _get_existing_columns(connection, "user_anime_status")
+    if "media_type" not in status_columns:
+        connection.execute("ALTER TABLE user_anime_status ADD COLUMN media_type TEXT DEFAULT 'anime'")
+    connection.execute(
+        "UPDATE user_anime_status SET media_type = 'anime' WHERE media_type IS NULL OR media_type = ''"
+    )
 
 
 def init_db():
@@ -49,6 +65,7 @@ def init_db():
             anime_id INTEGER NOT NULL,
             anime_title TEXT NOT NULL,
             anime_image TEXT NOT NULL,
+            media_type TEXT DEFAULT 'anime',
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
         """
@@ -74,10 +91,13 @@ def init_db():
             user_id INTEGER NOT NULL,
             anime_id INTEGER NOT NULL,
             status TEXT NOT NULL,
+            media_type TEXT DEFAULT 'anime',
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
         """
     )
+
+    _ensure_media_columns(connection)
 
     connection.commit()
     connection.close()
@@ -113,24 +133,24 @@ def get_user_by_id(user_id):
     return user
 
 
-def add_favorite_db(user_id, anime_id, title, image):
+def add_favorite_db(user_id, anime_id, title, image, media_type="anime"):
     connection = get_db_connection()
     connection.execute(
         """
-        INSERT INTO favorites (user_id, anime_id, anime_title, anime_image)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO favorites (user_id, anime_id, anime_title, anime_image, media_type)
+        VALUES (?, ?, ?, ?, ?)
         """,
-        (user_id, anime_id, title, image),
+        (user_id, anime_id, title, image, media_type),
     )
     connection.commit()
     connection.close()
 
 
-def remove_favorite_db(user_id, anime_id):
+def remove_favorite_db(user_id, anime_id, media_type="anime"):
     connection = get_db_connection()
     connection.execute(
-        "DELETE FROM favorites WHERE user_id = ? AND anime_id = ?",
-        (user_id, anime_id),
+        "DELETE FROM favorites WHERE user_id = ? AND anime_id = ? AND media_type = ?",
+        (user_id, anime_id, media_type),
     )
     connection.commit()
     connection.close()
@@ -146,11 +166,11 @@ def get_user_favorites(user_id):
     return rows
 
 
-def check_favorite(user_id, anime_id):
+def check_favorite(user_id, anime_id, media_type="anime"):
     connection = get_db_connection()
     match = connection.execute(
-        "SELECT 1 FROM favorites WHERE user_id = ? AND anime_id = ?",
-        (user_id, anime_id),
+        "SELECT 1 FROM favorites WHERE user_id = ? AND anime_id = ? AND media_type = ?",
+        (user_id, anime_id, media_type),
     ).fetchone()
     connection.close()
     return match is not None
@@ -216,12 +236,15 @@ def update_user_avatar(user_id, avatar_filename):
     connection.close()
 
 
-def save_status_db(user_id, anime_id, status):
+def save_status_db(user_id, anime_id, status, media_type="anime"):
     connection = get_db_connection()
 
     existing = connection.execute(
-        "SELECT id FROM user_anime_status WHERE user_id = ? AND anime_id = ?",
-        (user_id, anime_id),
+        """
+        SELECT id FROM user_anime_status
+        WHERE user_id = ? AND anime_id = ? AND media_type = ?
+        """,
+        (user_id, anime_id, media_type),
     ).fetchone()
 
     if existing:
@@ -229,28 +252,31 @@ def save_status_db(user_id, anime_id, status):
             """
             UPDATE user_anime_status
             SET status = ?
-            WHERE user_id = ? AND anime_id = ?
+            WHERE user_id = ? AND anime_id = ? AND media_type = ?
             """,
-            (status, user_id, anime_id),
+            (status, user_id, anime_id, media_type),
         )
     else:
         connection.execute(
             """
-            INSERT INTO user_anime_status (user_id, anime_id, status)
-            VALUES (?, ?, ?)
+            INSERT INTO user_anime_status (user_id, anime_id, status, media_type)
+            VALUES (?, ?, ?, ?)
             """,
-            (user_id, anime_id, status),
+            (user_id, anime_id, status, media_type),
         )
 
     connection.commit()
     connection.close()
 
 
-def get_status_db(user_id, anime_id):
+def get_status_db(user_id, anime_id, media_type="anime"):
     connection = get_db_connection()
     row = connection.execute(
-        "SELECT status FROM user_anime_status WHERE user_id = ? AND anime_id = ?",
-        (user_id, anime_id),
+        """
+        SELECT status FROM user_anime_status
+        WHERE user_id = ? AND anime_id = ? AND media_type = ?
+        """,
+        (user_id, anime_id, media_type),
     ).fetchone()
     connection.close()
 
@@ -264,7 +290,9 @@ def get_user_favorites_with_status(user_id):
         SELECT f.*, s.status
         FROM favorites AS f
         LEFT JOIN user_anime_status AS s
-          ON f.user_id = s.user_id AND f.anime_id = s.anime_id
+          ON f.user_id = s.user_id
+         AND f.anime_id = s.anime_id
+         AND f.media_type = s.media_type
         WHERE f.user_id = ?
         """,
         (user_id,),

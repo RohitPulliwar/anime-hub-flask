@@ -9,10 +9,10 @@
     font-size:26px;
     font-weight:600;
 ">
-    Welcome back, {{ username }}
+    Welcome back, {{ username }} - {{ media_label }} Mode
 </h2>
 
-{% macro anime_section(title, anime_list, favorite_ids) %}
+{% macro media_section(title, media_list, favorite_ids, current_media) %}
     <h3 style="
         margin:50px 0 20px 0;
         font-size:20px;
@@ -28,9 +28,9 @@
         grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
         gap:24px;
     ">
-        {% for anime in anime_list %}
+        {% for anime in media_list %}
         <div style="position:relative;">
-            <a href="{{ url_for('main_bp.anime_detail', anime_id=anime['mal_id']) }}"
+            <a href="{{ url_for('main_bp.anime_detail', anime_id=anime['mal_id'], media=current_media) }}"
                style="text-decoration:none; color:white;">
                 <div style="
                     background:#1e1e1e;
@@ -60,6 +60,20 @@
                             Score {{ anime['score'] }}
                         </div>
                         {% endif %}
+
+                        <div style="
+                            position:absolute;
+                            bottom:12px;
+                            left:12px;
+                            background:rgba(0,0,0,0.72);
+                            border:1px solid #555;
+                            padding:4px 8px;
+                            border-radius:999px;
+                            font-size:11px;
+                            letter-spacing:0.6px;
+                        ">
+                            {{ media_label|upper }}
+                        </div>
                     </div>
 
                     <div style="padding:14px;">
@@ -82,6 +96,7 @@
                 data-anime-id="{{ anime['mal_id'] }}"
                 data-anime-title="{{ anime['title'] }}"
                 data-anime-image="{{ anime['images']['jpg']['image_url'] }}"
+                data-media-type="{{ current_media }}"
                 style="
                     position:absolute;
                     top:10px;
@@ -102,9 +117,11 @@
     </div>
 {% endmacro %}
 
-{{ anime_section("Top Rated Anime", top_anime, favorite_ids) }}
-{{ anime_section("Currently Airing", seasonal_anime, favorite_ids) }}
-{{ anime_section("Most Popular Anime", popular_anime, favorite_ids) }}
+{{ media_section("Top Rated " ~ media_label, top_anime, favorite_ids, current_media) }}
+{% if current_media == "anime" %}
+{{ media_section("Currently Airing Anime", seasonal_anime, favorite_ids, current_media) }}
+{% endif %}
+{{ media_section("Most Popular " ~ media_label, popular_anime, favorite_ids, current_media) }}
 
 <script>
 document.querySelectorAll(".favorite-btn").forEach((button) => {
@@ -115,7 +132,8 @@ document.querySelectorAll(".favorite-btn").forEach((button) => {
         const payload = {
             anime_id: Number(button.dataset.animeId),
             anime_title: button.dataset.animeTitle,
-            anime_image: button.dataset.animeImage
+            anime_image: button.dataset.animeImage,
+            media_type: button.dataset.mediaType
         };
 
         const response = await fetch("{{ url_for('fav_bp.toggle_favorite') }}", {

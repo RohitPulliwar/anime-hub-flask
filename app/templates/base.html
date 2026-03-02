@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>{% block title %}Anime World{% endblock %}</title>
-    
+
     <style>
         body {
             margin: 0;
@@ -12,17 +12,17 @@
             color: #ffffff;
         }
 
-        /* Navbar */
         .navbar {
             display: flex;
             justify-content: space-between;
             align-items: center;
             padding: 15px 40px;
             background-color: #1f1f1f;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
         }
 
-        .nav-left a, .nav-right a {
+        .nav-left a,
+        .nav-right a {
             text-decoration: none;
             color: white;
             margin-right: 20px;
@@ -40,14 +40,12 @@
             color: #ff4c4c;
         }
 
-        /* Container */
         .container {
             max-width: 1000px;
             margin: auto;
             padding: 40px 20px;
         }
 
-        /* Buttons */
         .btn {
             padding: 10px 16px;
             border-radius: 6px;
@@ -74,7 +72,6 @@
             background-color: #555;
         }
 
-        /* Flash messages */
         .flash {
             padding: 10px 15px;
             margin-bottom: 20px;
@@ -83,17 +80,45 @@
             color: #ff4c4c;
         }
 
+        .media-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .media-pill {
+            text-decoration: none;
+            color: #d9d9d9;
+            border: 1px solid #444;
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-size: 13px;
+            transition: 0.2s ease;
+        }
+
+        .media-pill:hover {
+            border-color: #ff4c4c;
+            color: #ffffff;
+        }
+
+        .media-pill.active {
+            background: #ff4c4c;
+            border-color: #ff4c4c;
+            color: #ffffff;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body>
+    {% set active_media = current_media|default('anime') %}
 
     <div class="navbar">
         <div class="nav-left">
-            <span class="brand">Anime World 🌸</span>
-            <a href="{{ url_for('main_bp.home') }}">Home</a>
+            <span class="brand">Anime World</span>
+            <a href="{{ url_for('main_bp.home', media=active_media) }}">Home</a>
             {% if "user_id" in session %}
-                <a href ="{{url_for('main_bp.search')}}">search</a>
-                <a href="{{ url_for('main_bp.dashboard') }}">Dashboard</a>
+                <a href="{{ url_for('main_bp.search', media=active_media) }}">Search</a>
+                <a href="{{ url_for('main_bp.dashboard', media=active_media) }}">Dashboard</a>
                 <a href="{{ url_for('main_bp.profile') }}">Profile</a>
             {% endif %}
         </div>
@@ -110,8 +135,21 @@
     </div>
 
     <div class="container">
+        <div class="media-tabs">
+            <a class="media-pill {% if active_media == 'anime' %}active{% endif %}"
+               href="{{ url_for('main_bp.home', media='anime') }}">
+                Anime
+            </a>
+            <a class="media-pill {% if active_media == 'manga' %}active{% endif %}"
+               href="{{ url_for('main_bp.home', media='manga') }}">
+                Manga
+            </a>
+            <a class="media-pill {% if active_media == 'lightnovel' %}active{% endif %}"
+               href="{{ url_for('main_bp.home', media='lightnovel') }}">
+                Light Novel
+            </a>
+        </div>
 
-        <!-- Flash Messages -->
         {% with messages = get_flashed_messages() %}
             {% if messages %}
                 {% for message in messages %}
@@ -122,7 +160,6 @@
 
         {% block content %}
         {% endblock %}
-
     </div>
 
 </body>

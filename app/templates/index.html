@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Anime World{% endblock %}
+{% block title %}{{ media_label }} World{% endblock %}
 
 {% block content %}
 
@@ -12,11 +12,11 @@
     margin-bottom:50px;
 ">
     <h1 style="font-size:36px; margin-bottom:15px;">
-        Discover Your Next Favorite Anime
+        Discover Your Next Favorite {{ media_label }}
     </h1>
 
     <p style="color:#aaa; font-size:16px; margin-bottom:25px;">
-        Track, explore, and stay updated with trending anime worldwide.
+        Track, explore, and stay updated with trending titles worldwide.
     </p>
 
     {% if not session.get("user_id") %}
@@ -27,7 +27,7 @@
             Login
         </a>
     {% else %}
-        <a href="{{ url_for('main_bp.dashboard') }}" class="btn btn-primary">
+        <a href="{{ url_for('main_bp.dashboard', media=current_media) }}" class="btn btn-primary">
             Go to Dashboard
         </a>
     {% endif %}
@@ -40,7 +40,7 @@
     border-left:4px solid #ff4c4c;
     padding-left:12px;
 ">
-    Trending Right Now
+    Trending {{ media_label }}
 </h3>
 
 <div style="
@@ -50,7 +50,7 @@
 ">
     {% for anime in trending %}
     <div style="position:relative;">
-        <a href="{{ url_for('main_bp.anime_detail', anime_id=anime['mal_id']) }}"
+        <a href="{{ url_for('main_bp.anime_detail', anime_id=anime['mal_id'], media=current_media) }}"
            style="text-decoration:none; color:white;">
             <div style="
                 background:#1e1e1e;
@@ -79,6 +79,20 @@
                         Score {{ anime['score'] }}
                     </div>
                     {% endif %}
+
+                    <div style="
+                        position:absolute;
+                        bottom:12px;
+                        left:12px;
+                        background:rgba(0,0,0,0.72);
+                        border:1px solid #555;
+                        padding:4px 8px;
+                        border-radius:999px;
+                        font-size:11px;
+                        letter-spacing:0.6px;
+                    ">
+                        {{ media_label|upper }}
+                    </div>
                 </div>
 
                 <div style="padding:14px;">
@@ -101,6 +115,7 @@
             data-anime-id="{{ anime['mal_id'] }}"
             data-anime-title="{{ anime['title'] }}"
             data-anime-image="{{ anime['images']['jpg']['image_url'] }}"
+            data-media-type="{{ current_media }}"
             style="
                 position:absolute;
                 top:10px;
@@ -131,7 +146,8 @@ document.querySelectorAll(".favorite-btn").forEach((button) => {
         const payload = {
             anime_id: Number(button.dataset.animeId),
             anime_title: button.dataset.animeTitle,
-            anime_image: button.dataset.animeImage
+            anime_image: button.dataset.animeImage,
+            media_type: button.dataset.mediaType
         };
 
         const response = await fetch("{{ url_for('fav_bp.toggle_favorite') }}", {
