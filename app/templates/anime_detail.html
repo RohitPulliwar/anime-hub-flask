@@ -4,6 +4,20 @@
 
 {% block content %}
 
+<div style="padding:20px 40px 0;">
+    <a href="{{ request.referrer or url_for('main_bp.home') }}"
+       style="
+            text-decoration:none;
+            display:inline-block;
+            padding:8px 14px;
+            border-radius:8px;
+            background:#2a2a2a;
+            color:#ffffff;
+       ">
+        Back
+    </a>
+</div>
+
 <div style="display:flex; gap:40px; flex-wrap:wrap; padding:40px;">
 
     <!-- Poster + Actions -->

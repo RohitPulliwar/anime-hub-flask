@@ -9,13 +9,10 @@
     font-size:26px;
     font-weight:600;
 ">
-    Welcome back, {{ username }} 👋
+    Welcome back, {{ username }}
 </h2>
 
-
-{% macro anime_section(title, anime_list) %}
-
-    <!-- Section Header -->
+{% macro anime_section(title, anime_list, favorite_ids) %}
     <h3 style="
         margin:50px 0 20px 0;
         font-size:20px;
@@ -26,82 +23,114 @@
         {{ title }}
     </h3>
 
-    <!-- Grid -->
     <div style="
         display:grid;
         grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
         gap:24px;
     ">
-
         {% for anime in anime_list %}
-        <a href="{{ url_for('main_bp.anime_detail', anime_id=anime['mal_id']) }}"
-           style="text-decoration:none; color:white;">
+        <div style="position:relative;">
+            <a href="{{ url_for('main_bp.anime_detail', anime_id=anime['mal_id']) }}"
+               style="text-decoration:none; color:white;">
+                <div style="
+                    background:#1e1e1e;
+                    border-radius:16px;
+                    overflow:hidden;
+                    box-shadow:0 6px 18px rgba(0,0,0,0.45);
+                    transition:all 0.25s ease;
+                "
+                onmouseover="this.style.transform='scale(1.06)'"
+                onmouseout="this.style.transform='scale(1)'">
+                    <div style="position:relative;">
+                        <img src="{{ anime['images']['jpg']['image_url'] }}"
+                             style="width:100%; height:260px; object-fit:cover;">
 
-            <div style="
-                background:#1e1e1e;
-                border-radius:16px;
-                overflow:hidden;
-                box-shadow:0 6px 18px rgba(0,0,0,0.45);
-                transition: all 0.25s ease;
-            "
-            onmouseover="this.style.transform='scale(1.06)'"
-            onmouseout="this.style.transform='scale(1)'">
-
-                <!-- Poster Container -->
-                <div style="position:relative;">
-
-                    <img src="{{ anime['images']['jpg']['image_url'] }}"
-                         style="
-                            width:100%;
-                            height:260px;
-                            object-fit:cover;
-                         ">
-
-                    <!-- Rating Badge -->
-                    {% if anime['score'] %}
-                    <div style="
-                        position:absolute;
-                        top:12px;
-                        right:12px;
-                        background:#ff4c4c;
-                        padding:6px 10px;
-                        border-radius:10px;
-                        font-size:12px;
-                        font-weight:600;
-                        box-shadow:0 3px 10px rgba(0,0,0,0.5);
-                    ">
-                        ⭐ {{ anime['score'] }}
+                        {% if anime['score'] %}
+                        <div style="
+                            position:absolute;
+                            top:12px;
+                            left:12px;
+                            background:#ff4c4c;
+                            padding:6px 10px;
+                            border-radius:10px;
+                            font-size:12px;
+                            font-weight:600;
+                            box-shadow:0 3px 10px rgba(0,0,0,0.5);
+                        ">
+                            Score {{ anime['score'] }}
+                        </div>
+                        {% endif %}
                     </div>
-                    {% endif %}
 
+                    <div style="padding:14px;">
+                        <p style="
+                            font-size:14px;
+                            font-weight:500;
+                            color:#f1f1f1;
+                            line-height:1.4;
+                            min-height:40px;
+                        ">
+                            {{ anime['title'][:45] }}
+                            {% if anime['title']|length > 45 %}...{% endif %}
+                        </p>
+                    </div>
                 </div>
+            </a>
 
-                <!-- Anime Title -->
-                <div style="padding:14px;">
-                    <p style="
-                        font-size:14px;
-                        font-weight:500;
-                        color:#f1f1f1;
-                        line-height:1.4;
-                        min-height:40px;
-                    ">
-                        {{ anime['title'][:45] }}
-                        {% if anime['title']|length > 45 %}...{% endif %}
-                    </p>
-                </div>
-
-            </div>
-
-        </a>
+            <button
+                class="favorite-btn"
+                data-anime-id="{{ anime['mal_id'] }}"
+                data-anime-title="{{ anime['title'] }}"
+                data-anime-image="{{ anime['images']['jpg']['image_url'] }}"
+                style="
+                    position:absolute;
+                    top:10px;
+                    right:10px;
+                    border:none;
+                    border-radius:999px;
+                    width:36px;
+                    height:36px;
+                    cursor:pointer;
+                    font-size:18px;
+                    background:rgba(0,0,0,0.65);
+                    color:{{ '#ff4c4c' if anime['mal_id'] in favorite_ids else '#ffffff' }};
+                ">
+                {% if anime['mal_id'] in favorite_ids %}&#10084;{% else %}&#9825;{% endif %}
+            </button>
+        </div>
         {% endfor %}
-
     </div>
-
 {% endmacro %}
 
+{{ anime_section("Top Rated Anime", top_anime, favorite_ids) }}
+{{ anime_section("Currently Airing", seasonal_anime, favorite_ids) }}
+{{ anime_section("Most Popular Anime", popular_anime, favorite_ids) }}
 
-{{ anime_section("🏆 Top Rated Anime", top_anime) }}
-{{ anime_section("🌸 Currently Airing", seasonal_anime) }}
-{{ anime_section("⭐ Most Popular Anime", popular_anime) }}
+<script>
+document.querySelectorAll(".favorite-btn").forEach((button) => {
+    button.addEventListener("click", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const payload = {
+            anime_id: Number(button.dataset.animeId),
+            anime_title: button.dataset.animeTitle,
+            anime_image: button.dataset.animeImage
+        };
+
+        const response = await fetch("{{ url_for('fav_bp.toggle_favorite') }}", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) return;
+        const data = await response.json();
+        const isAdded = data.status === "added";
+        button.innerHTML = isAdded ? "&#10084;" : "&#9825;";
+        button.style.color = isAdded ? "#ff4c4c" : "#ffffff";
+    });
+});
+</script>
 
 {% endblock %}

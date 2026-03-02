@@ -1,256 +1,233 @@
-from flask import Blueprint, render_template, redirect , session, flash,request,url_for,current_app
-from app.routes.auth_route import login_required
-import requests
-import sqlite3
-import time 
-from app.db import update_user_avatar,get_status_db,save_status_db,get_user_by_id,get_db_connection,get_user_favorites_with_status
 import os
 import re
+import time
 from uuid import uuid4
 
+import requests
+from flask import (
+    Blueprint,
+    current_app,
+    flash,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 
-quiz_questions = [
-    {
-        "question": "Who is Naruto's father?",
-        "options": ["Kakashi", "Minato", "Jiraiya", "Itachi"],
-        "answer": "Minato"
-    },
-    {
-        "question": "Which anime has Titans?",
-        "options": ["Bleach", "One Piece", "Attack on Titan", "Dragon Ball"],
-        "answer": "Attack on Titan"
-    },
-    {
-        "question": "Who is Goku's first son?",
-        "options": ["Goten", "Vegeta", "Gohan", "Trunks"],
-        "answer": "Gohan"
-    },
-    {
-        "question": "Who uses Death Note?",
-        "options": ["L", "Naruto", "Light Yagami", "Asta"],
-        "answer": "Light Yagami"
-    },
-    {
-        "question": "Blue Lock is about?",
-        "options": ["Basketball", "Football", "Cooking", "Magic"],
-        "answer": "Football"
-    }
-]
+from app.db import (
+    get_db_connection,
+    get_status_db,
+    get_user_by_id,
+    get_user_favorites_with_status,
+    save_status_db,
+    update_user_avatar,
+)
+from app.routes.auth_route import login_required
+
+main_bp = Blueprint("main_bp", __name__)
+
+API_CACHE = {}
+CACHE_TTL_SECONDS = 300
+VALID_STATUS = ["Watching", "Completed", "Plan to Watch", "Dropped", "Not Set"]
+DEFAULT_THEME = "#40e0d0"
 
 
-dashboard_cache={}
-CACHE_TIMEOUT=300
-main_bp= Blueprint("main_bp", __name__)
+def _fetch_json(url):
+    response = requests.get(url, timeout=15)
+    response.raise_for_status()
+    return response.json()
+
+
+def _fetch_cached_list(cache_key, url, limit=None):
+    now = time.time()
+    cached = API_CACHE.get(cache_key)
+
+    if cached and now - cached["at"] < CACHE_TTL_SECONDS:
+        data = cached["payload"]
+    else:
+        data = _fetch_json(url).get("data", [])
+        API_CACHE[cache_key] = {"payload": data, "at": now}
+
+    return data[:limit] if limit else data
+
+
+def _load_favorite_ids(user_id):
+    connection = get_db_connection()
+    rows = connection.execute(
+        "SELECT anime_id FROM favorites WHERE user_id = ?",
+        (user_id,),
+    ).fetchall()
+    connection.close()
+    return [row[0] for row in rows]
+
+
+def _save_profile_customization(cursor, user_id):
+    current_user = cursor.execute(
+        "SELECT banner_url FROM users WHERE id = ?",
+        (user_id,),
+    ).fetchone()
+
+    bio = (request.form.get("bio") or "").strip()[:220]
+    theme_color = (request.form.get("theme_color") or "").strip()
+    banner_url = current_user["banner_url"] if current_user else ""
+    uploaded_banner = request.files.get("banner_file")
+
+    if uploaded_banner and uploaded_banner.filename:
+        extension = (
+            uploaded_banner.filename.rsplit(".", 1)[-1].lower()
+            if "." in uploaded_banner.filename
+            else ""
+        )
+        allowed = {"png", "jpg", "jpeg", "webp", "gif"}
+
+        if extension in allowed:
+            banner_dir = os.path.join(current_app.root_path, "static", "profile_banners")
+            os.makedirs(banner_dir, exist_ok=True)
+            file_name = f"{uuid4().hex}.{extension}"
+            upload_path = os.path.join(banner_dir, file_name)
+            uploaded_banner.save(upload_path)
+            banner_url = url_for("static", filename=f"profile_banners/{file_name}")
+        else:
+            flash("Banner file must be PNG, JPG, JPEG, WEBP, or GIF.")
+
+    if not re.fullmatch(r"#[0-9A-Fa-f]{6}", theme_color):
+        theme_color = DEFAULT_THEME
+
+    cursor.execute(
+        """
+        UPDATE users
+        SET bio = ?, banner_url = ?, theme_color = ?
+        WHERE id = ?
+        """,
+        (bio, banner_url, theme_color, user_id),
+    )
+    flash("Profile updated.")
+
+
+def _build_profile_groups(favorites):
+    grouped = {label: [] for label in VALID_STATUS}
+    for anime in favorites:
+        status = anime["status"] if anime["status"] else "Not Set"
+        grouped[status if status in grouped else "Not Set"].append(anime)
+    return grouped
+
 
 @main_bp.route("/")
 def home():
+    trending = _fetch_json(
+        "https://api.jikan.moe/v4/anime?order_by=popularity&sort=asc&limit=12"
+    ).get("data", [])
+    favorite_ids = _load_favorite_ids(session["user_id"]) if "user_id" in session else []
+    return render_template("index.html", trending=trending, favorite_ids=favorite_ids)
 
-    
-    url = "https://api.jikan.moe/v4/anime?order_by=popularity&sort=asc&limit=12"
-    response = requests.get(url)
-    trending = response.json().get("data", [])
 
-    return render_template("index.html", trending=trending)
 @main_bp.route("/dashboard")
 @login_required
 def dashboard():
-
     username = session.get("username")
-    current_time = time.time()
-
-   
-    if "top" in dashboard_cache and current_time - dashboard_cache["top_time"] < CACHE_TIMEOUT:
-        top_anime = dashboard_cache["top"]
-    else:
-        top_url = "https://api.jikan.moe/v4/top/anime?limit=10"
-        response = requests.get(top_url)
-        top_anime = response.json().get("data", [])
-        dashboard_cache["top"] = top_anime
-        dashboard_cache["top_time"] = current_time
-
- 
-    if "seasonal" in dashboard_cache and current_time - dashboard_cache["seasonal_time"] < CACHE_TIMEOUT:
-        seasonal_anime = dashboard_cache["seasonal"]
-    else:
-        season_url = "https://api.jikan.moe/v4/seasons/now"
-        response = requests.get(season_url)
-        seasonal_anime = response.json().get("data", [])[:10]
-        dashboard_cache["seasonal"] = seasonal_anime
-        dashboard_cache["seasonal_time"] = current_time
-
-   
-    if "popular" in dashboard_cache and current_time - dashboard_cache["popular_time"] < CACHE_TIMEOUT:
-        popular_anime = dashboard_cache["popular"]
-    else:
-        popular_url = "https://api.jikan.moe/v4/anime?order_by=popularity&sort=asc&limit=10"
-        response = requests.get(popular_url)
-        popular_anime = response.json().get("data", [])
-        dashboard_cache["popular"] = popular_anime
-        dashboard_cache["popular_time"] = current_time
-
+    favorite_ids = _load_favorite_ids(session["user_id"])
+    top_anime = _fetch_cached_list("top", "https://api.jikan.moe/v4/top/anime?limit=10")
+    seasonal_anime = _fetch_cached_list(
+        "seasonal",
+        "https://api.jikan.moe/v4/seasons/now",
+        limit=10,
+    )
+    popular_anime = _fetch_cached_list(
+        "popular",
+        "https://api.jikan.moe/v4/anime?order_by=popularity&sort=asc&limit=10",
+    )
     return render_template(
         "dashboard.html",
         username=username,
+        favorite_ids=favorite_ids,
         top_anime=top_anime,
         seasonal_anime=seasonal_anime,
-        popular_anime=popular_anime
+        popular_anime=popular_anime,
     )
+
+
 @main_bp.route("/search", methods=["GET", "POST"])
 def search():
     results = []
     favorite_ids = []
 
     if request.method == "POST":
-        query = request.form.get("anime_name")
-
+        query = (request.form.get("anime_name") or "").strip()
         if query:
-            url = f"https://api.jikan.moe/v4/anime?q={query}"
-            response = requests.get(url)
-            data = response.json()
-            results = data.get("data", [])
-
-            
+            results = _fetch_json(f"https://api.jikan.moe/v4/anime?q={query}").get("data", [])
             if "user_id" in session:
-                conn = get_db_connection()
-                cursor = conn.cursor()
+                favorite_ids = _load_favorite_ids(session["user_id"])
 
-                cursor.execute(
-                    "SELECT anime_id FROM favorites WHERE user_id=?",
-                    (session["user_id"],)
-                )
+    return render_template("search.html", results=results, favorite_ids=favorite_ids)
 
-                rows = cursor.fetchall()
-                favorite_ids = [row[0] for row in rows]
 
-                conn.close()
-
-    return render_template(
-        "search.html",
-        results=results,
-        favorite_ids=favorite_ids
-    )
-
-@main_bp.route("/anime/<int:anime_id>",methods=["GET","POST"])
+@main_bp.route("/anime/<int:anime_id>", methods=["GET", "POST"])
 def anime_detail(anime_id):
+    if request.method == "POST" and "user_id" in session:
+        selected_status = request.form.get("status")
+        if selected_status:
+            save_status_db(session["user_id"], anime_id, selected_status)
 
-
-    if request.method=="POST" and "user_id" in session:
-        status=request.form.get("status")
-        if status:
-            save_status_db(session.get("user_id"), anime_id,status)
-    url = f"https://api.jikan.moe/v4/anime/{anime_id}"
-    response = requests.get(url)
-    data = response.json()
-    anime = data.get("data")
+    anime = _fetch_json(f"https://api.jikan.moe/v4/anime/{anime_id}").get("data")
 
     is_favorite = False
+    my_status = None
 
     if "user_id" in session:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        cursor.execute(
-            "SELECT * FROM favorites WHERE user_id=? AND anime_id=?",
-            (session["user_id"], anime_id)
+        connection = get_db_connection()
+        is_favorite = (
+            connection.execute(
+                "SELECT 1 FROM favorites WHERE user_id = ? AND anime_id = ?",
+                (session["user_id"], anime_id),
+            ).fetchone()
+            is not None
         )
+        connection.close()
+        my_status = get_status_db(session["user_id"], anime_id)
 
-        if cursor.fetchone():
-            is_favorite = True
-
-        conn.close()
-
-    my_status=None
-    if "user_id" in session:
-        my_status=get_status_db(session["user_id"],anime_id)
     return render_template(
         "anime_detail.html",
         anime=anime,
         is_favorite=is_favorite,
-        my_status=my_status
+        my_status=my_status,
     )
+
 
 @main_bp.route("/profile", methods=["GET", "POST"])
 @login_required
 def profile():
-
-    user_id = int(session.get("user_id"))
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    user_id = int(session["user_id"])
+    connection = get_db_connection()
+    cursor = connection.cursor()
 
     if request.method == "POST":
-        cursor.execute("SELECT banner_url FROM users WHERE id = ?", (user_id,))
-        current_user = cursor.fetchone()
-        bio = (request.form.get("bio") or "").strip()
-        banner_url = current_user["banner_url"] if current_user else ""
-        theme_color = (request.form.get("theme_color") or "").strip()
-        banner_file = request.files.get("banner_file")
+        _save_profile_customization(cursor, user_id)
+        connection.commit()
 
-        if len(bio) > 220:
-            bio = bio[:220]
-
-        if banner_file and banner_file.filename:
-            ext = banner_file.filename.rsplit(".", 1)[-1].lower() if "." in banner_file.filename else ""
-            allowed_exts = {"png", "jpg", "jpeg", "webp", "gif"}
-            if ext in allowed_exts:
-                banner_folder = os.path.join(current_app.root_path, "static", "profile_banners")
-                os.makedirs(banner_folder, exist_ok=True)
-                filename = f"{uuid4().hex}.{ext}"
-                save_path = os.path.join(banner_folder, filename)
-                banner_file.save(save_path)
-                banner_url = url_for("static", filename=f"profile_banners/{filename}")
-            else:
-                flash("Invalid banner format. Use PNG, JPG, JPEG, WEBP, or GIF.")
-
-        if not re.fullmatch(r"#[0-9A-Fa-f]{6}", theme_color):
-            theme_color = "#40e0d0"
-
-        cursor.execute(
-            """
-            UPDATE users
-            SET bio = ?, banner_url = ?, theme_color = ?
-            WHERE id = ?
-            """,
-            (bio, banner_url, theme_color, user_id),
-        )
-        conn.commit()
-        flash("Profile style updated.")
-
-    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-    user = cursor.fetchone()
-
+    user = cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     favorites = get_user_favorites_with_status(user_id)
+    grouped_favorites = _build_profile_groups(favorites)
+    status_counts = {status: len(grouped_favorites[status]) for status in VALID_STATUS}
     total_favorites = len(favorites)
-
-    status_order = ["Watching", "Completed", "Plan to Watch", "Dropped", "Not Set"]
-    grouped_favorites = {status: [] for status in status_order}
-
-    for fav in favorites:
-        status = fav["status"] if fav["status"] else "Not Set"
-        if status not in grouped_favorites:
-            grouped_favorites["Not Set"].append(fav)
-        else:
-            grouped_favorites[status].append(fav)
-
-    status_counts = {status: len(grouped_favorites[status]) for status in status_order}
-    completed_count = status_counts["Completed"]
-    completion_rate = int((completed_count / total_favorites) * 100) if total_favorites else 0
-
-    cursor.execute(
-        "SELECT COUNT(*) as total FROM quiz_attempts WHERE user_id=?",
-        (user_id,),
+    completion_rate = (
+        int((status_counts["Completed"] / total_favorites) * 100)
+        if total_favorites
+        else 0
     )
-    quiz_result = cursor.fetchone()
-    quiz_count = quiz_result["total"] if quiz_result else 0
 
-    conn.close()
+    quiz_row = cursor.execute(
+        "SELECT COUNT(*) AS total FROM quiz_attempts WHERE user_id = ?",
+        (user_id,),
+    ).fetchone()
+    quiz_count = quiz_row["total"] if quiz_row else 0
+    connection.close()
 
-    if user["next_level_xp"] > 0:
-        xp_percentage = int(
-            (user["current_xp"] / user["next_level_xp"]) * 100
-        )
-    else:
-        xp_percentage = 0
+    xp_percentage = (
+        int((user["current_xp"] / user["next_level_xp"]) * 100)
+        if user["next_level_xp"] > 0
+        else 0
+    )
 
     return render_template(
         "profile.html",
@@ -258,7 +235,7 @@ def profile():
         xp_percentage=xp_percentage,
         favorites=favorites,
         grouped_favorites=grouped_favorites,
-        status_order=status_order,
+        status_order=VALID_STATUS,
         status_counts=status_counts,
         completion_rate=completion_rate,
         total_favorites=total_favorites,
@@ -268,26 +245,19 @@ def profile():
         avatar_items=[],
     )
 
+
 @main_bp.route("/choose-avatar", methods=["GET", "POST"])
 @login_required
 def choose_avatar():
-
-    user_id = session.get("user_id")
+    user_id = session["user_id"]
     user = get_user_by_id(user_id)
-
     avatar_folder = os.path.join("app", "static", "profile_pics")
-    avatar_list = os.listdir(avatar_folder)
+    available_avatars = os.listdir(avatar_folder)
 
     if request.method == "POST":
-        selected_avatar = request.form.get("avatar")
-
-        if selected_avatar in avatar_list:
-            update_user_avatar(user_id, selected_avatar)
-
+        selected = request.form.get("avatar")
+        if selected in available_avatars:
+            update_user_avatar(user_id, selected)
         return redirect(url_for("main_bp.profile"))
 
-    return render_template(
-        "choose_avatar.html",
-        avatars=avatar_list,
-        user=user
-    )
+    return render_template("choose_avatar.html", avatars=available_avatars, user=user)

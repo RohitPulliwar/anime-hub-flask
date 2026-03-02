@@ -1,70 +1,72 @@
-from flask import Blueprint, render_template, request, redirect, flash, session, url_for
-from werkzeug.security import check_password_hash, generate_password_hash
-from functools import wraps
-from app.db import create_user, get_user_by_username
 import sqlite3
+from functools import wraps
+
+from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from werkzeug.security import check_password_hash, generate_password_hash
+
+from app.db import create_user, get_user_by_username
 
 auth_bp = Blueprint("auth_bp", __name__)
 
 
 @auth_bp.route("/register", methods=["GET", "POST"])
 def register():
-    if request.method == "POST":
-        username = request.form["username"].strip()
-        password = request.form["password"]
+    if request.method == "GET":
+        return render_template("register.html")
 
-        if not username or not password:
-            flash("All fields are required")
-            return redirect(url_for("auth_bp.register"))
+    username = request.form.get("username", "").strip()
+    password = request.form.get("password", "")
 
-        if len(password) < 6:
-            flash("Password must be at least 6 characters")
-            return redirect(url_for("auth_bp.register"))
+    if not username or not password:
+        flash("Please fill in both username and password.")
+        return redirect(url_for("auth_bp.register"))
 
-        hashed_pass = generate_password_hash(password)
+    if len(password) < 6:
+        flash("Password must be at least 6 characters.")
+        return redirect(url_for("auth_bp.register"))
 
-        try:
-            create_user(username, hashed_pass)
-            flash("Registration completed")
-            return redirect(url_for("auth_bp.login"))
-        except sqlite3.IntegrityError:
-            flash("Username already exists")
-            return redirect(url_for("auth_bp.register"))
+    try:
+        create_user(username, generate_password_hash(password))
+    except sqlite3.IntegrityError:
+        flash("That username is already taken.")
+        return redirect(url_for("auth_bp.register"))
 
-    return render_template("register.html")
+    flash("Account created. You can log in now.")
+    return redirect(url_for("auth_bp.login"))
 
 
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
-    if request.method == "POST":
-        username = request.form["username"]
-        password = request.form["password"]
+    if request.method == "GET":
+        return render_template("login.html")
 
-        user = get_user_by_username(username)
+    username = request.form.get("username", "").strip()
+    password = request.form.get("password", "")
+    user = get_user_by_username(username)
 
-        if user and check_password_hash(user["password"], password):
-            session["user_id"] = user["id"]
-            session["username"] = user["username"]
-            flash("Login successful")
-            return redirect(url_for("main_bp.dashboard"))
-        else:
-            flash("Incorrect data")
+    if user and check_password_hash(user["password"], password):
+        session["user_id"] = user["id"]
+        session["username"] = user["username"]
+        flash("Welcome back.")
+        return redirect(url_for("main_bp.dashboard"))
 
-    return render_template("login.html")
+    flash("Invalid username or password.")
+    return redirect(url_for("auth_bp.login"))
 
 
 @auth_bp.route("/logout")
 def logout():
     session.clear()
-    flash("Logged out successfully")
+    flash("You have been logged out.")
     return redirect(url_for("main_bp.home"))
 
 
-def login_required(f):
-    @wraps(f)
-    def wrapper(*args, **kwargs):
+def login_required(handler):
+    @wraps(handler)
+    def wrapped(*args, **kwargs):
         if "user_id" not in session:
-            flash("login first")
+            flash("Please log in to continue.")
             return redirect(url_for("auth_bp.login"))
-        return f(*args, **kwargs)
-    return wrapper
+        return handler(*args, **kwargs)
+
+    return wrapped

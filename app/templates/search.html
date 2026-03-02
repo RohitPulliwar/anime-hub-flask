@@ -4,12 +4,10 @@
 
 {% block content %}
 
-<h2 style="margin-bottom:20px;">Search Anime 🔍</h2>
+<h2 style="margin-bottom:20px;">Search Anime</h2>
 
-<!-- SEARCH FORM -->
 <form method="POST" action="{{ url_for('main_bp.search') }}"
       style="margin-bottom:40px; display:flex; gap:10px; max-width:500px;">
-
     <input type="text"
            name="anime_name"
            placeholder="Enter anime name..."
@@ -35,113 +33,102 @@
     </button>
 </form>
 
-
-<!-- RESULTS SECTION -->
 {% if results and results|length > 0 %}
     <div style="
         display:grid;
         grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
         gap:25px;
     ">
-
         {% for anime in results %}
-
         <div style="
+            position:relative;
             background:#1e1e1e;
             border-radius:12px;
             overflow:hidden;
             box-shadow:0 4px 10px rgba(0,0,0,0.5);
         ">
-
-            <!-- IMAGE -->
             <a href="{{ url_for('main_bp.anime_detail', anime_id=anime.mal_id) }}">
-    <img src="{{ anime.images.jpg.image_url }}"
-         alt="{{ anime.title }}"
-         style="width:100%; height:300px; object-fit:cover;">
-</a>
+                <img src="{{ anime.images.jpg.image_url }}"
+                     alt="{{ anime.title }}"
+                     style="width:100%; height:300px; object-fit:cover;">
+            </a>
+
+            {% if "user_id" in session %}
+            <button
+                class="favorite-btn"
+                data-anime-id="{{ anime.mal_id }}"
+                data-anime-title="{{ anime.title }}"
+                data-anime-image="{{ anime.images.jpg.image_url }}"
+                style="
+                    position:absolute;
+                    top:10px;
+                    right:10px;
+                    border:none;
+                    border-radius:999px;
+                    width:36px;
+                    height:36px;
+                    cursor:pointer;
+                    font-size:18px;
+                    background:rgba(0,0,0,0.65);
+                    color:{{ '#ff4c4c' if anime.mal_id in favorite_ids else '#ffffff' }};
+                ">
+                {% if anime.mal_id in favorite_ids %}&#10084;{% else %}&#9825;{% endif %}
+            </button>
+            {% endif %}
 
             <div style="padding:15px;">
-
                 <h3 style="font-size:16px; margin-bottom:8px;">
                     {{ anime.title }}
                 </h3>
 
                 <p style="color:gray; font-size:14px;">
-                    ⭐ Score: {{ anime.score or "N/A" }}
+                    Score: {{ anime.score or "N/A" }}
                 </p>
-
                 <p style="color:gray; font-size:14px;">
-                    🎬 Episodes: {{ anime.episodes or "Unknown" }}
+                    Episodes: {{ anime.episodes or "Unknown" }}
                 </p>
-
                 <p style="color:gray; font-size:14px; margin-bottom:10px;">
-                    📺 Type: {{ anime.type }}
+                    Type: {{ anime.type }}
                 </p>
 
-                <!-- FAVORITES LOGIC -->
-                {% if "user_id" in session %}
-
-                    {% if anime.mal_id in favorite_ids %}
-
-                        <button style="
-                            width:100%;
-                            padding:8px;
-                            border:none;
-                            background:#333;
-                            color:#ff4c4c;
-                            border-radius:6px;
-                        ">
-                            ❤️ Already in Favorites
-                        </button>
-
-                    {% else %}
-
-                        <form method="POST"
-                              action="{{ url_for('main_bp.search') }}">
-
-                            <input type="hidden"
-                                   name="anime_id"
-                                   value="{{ anime.mal_id }}">
-
-                            <input type="hidden"
-                                   name="anime_title"
-                                   value="{{ anime.title }}">
-
-                            <input type="hidden"
-                                   name="anime_image"
-                                   value="{{ anime.images.jpg.image_url }}">
-
-                            <button type="submit"
-                                    style="
-                                        width:100%;
-                                        padding:8px;
-                                        border:none;
-                                        background:#ff4c4c;
-                                        color:white;
-                                        border-radius:6px;
-                                        cursor:pointer;
-                                    ">
-                                ❤️ Add to Favorites
-                            </button>
-                        </form>
-
-                    {% endif %}
-
-                {% else %}
-                    <p style="color:gray; font-size:13px;">
-                        Login to add favorites
-                    </p>
+                {% if "user_id" not in session %}
+                <p style="color:gray; font-size:13px;">Login to add favorites</p>
                 {% endif %}
-
             </div>
-
         </div>
-
         {% endfor %}
     </div>
-
 {% elif request.method == "POST" %}
     <p>No results found.</p>
+{% endif %}
+
+{% if "user_id" in session %}
+<script>
+document.querySelectorAll(".favorite-btn").forEach((button) => {
+    button.addEventListener("click", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const payload = {
+            anime_id: Number(button.dataset.animeId),
+            anime_title: button.dataset.animeTitle,
+            anime_image: button.dataset.animeImage
+        };
+
+        const response = await fetch("{{ url_for('fav_bp.toggle_favorite') }}", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) return;
+        const data = await response.json();
+        const isAdded = data.status === "added";
+        button.innerHTML = isAdded ? "&#10084;" : "&#9825;";
+        button.style.color = isAdded ? "#ff4c4c" : "#ffffff";
+    });
+});
+</script>
 {% endif %}
 
 {% endblock %}
