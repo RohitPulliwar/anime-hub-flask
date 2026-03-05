@@ -3,116 +3,58 @@
 {% block title %}{{ anime.title }}{% endblock %}
 
 {% block content %}
+<a href="{{ request.referrer or url_for('main_bp.home', media=current_media) }}" class="btn btn-dark" style="margin-bottom:14px;">Back</a>
 
-<div style="padding:20px 40px 0;">
-    <a href="{{ request.referrer or url_for('main_bp.home', media=current_media) }}"
-       style="
-            text-decoration:none;
-            display:inline-block;
-            padding:8px 14px;
-            border-radius:8px;
-            background:#2a2a2a;
-            color:#ffffff;
-       ">
-        Back
-    </a>
-</div>
-
-<div style="display:flex; gap:40px; flex-wrap:wrap; padding:40px;">
-    <div style="display:flex; gap:15px; align-items:flex-start;">
-        <img src="{{ anime.images.jpg.image_url }}"
-             style="width:300px; border-radius:12px;">
-
-        {% if "user_id" in session %}
-        <div style="display:flex; flex-direction:column; gap:10px;">
-            <button id="fav-btn"
-                    style="
-                        padding:10px 15px;
-                        border:none;
-                        background:#222;
-                        color:white;
-                        border-radius:6px;
-                        cursor:pointer;
-                        font-weight:bold;
-                        white-space:nowrap;
-                    ">
-                {% if is_favorite %}
-                    Remove
-                {% else %}
-                    Add
-                {% endif %}
-            </button>
-
-            <form method="POST" action="{{ url_for('main_bp.anime_detail', anime_id=anime.mal_id, media=current_media) }}">
-                <select name="status"
-                        style="
-                            padding:8px;
-                            border-radius:6px;
-                            border:1px solid #444;
-                            background:#111;
-                            color:white;
-                            margin-bottom:5px;
-                        ">
-                    <option value="">-- Select --</option>
-
-                    <option value="Watching" {% if my_status == "Watching" %}selected{% endif %}>
-                        Watching
-                    </option>
-                    <option value="Completed" {% if my_status == "Completed" %}selected{% endif %}>
-                        Completed
-                    </option>
-                    <option value="Plan to Watch" {% if my_status == "Plan to Watch" %}selected{% endif %}>
-                        Plan to Watch
-                    </option>
-                    <option value="Dropped" {% if my_status == "Dropped" %}selected{% endif %}>
-                        Dropped
-                    </option>
-                </select>
-
-                <button type="submit"
-                        style="
-                            width:100%;
-                            padding:8px;
-                            border:none;
-                            background:#444;
-                            color:white;
-                            border-radius:6px;
-                            cursor:pointer;
-                            font-weight:bold;
-                        ">
-                    Save
-                </button>
-            </form>
+<section class="panel" style="padding:20px;">
+    <div style="display:grid; grid-template-columns: minmax(240px, 320px) 1fr; gap:22px;">
+        <div style="position:relative;">
+            <img src="{{ anime.images.jpg.image_url }}" alt="{{ anime.title }}" style="width:100%; border-radius:14px; border:1px solid var(--line);">
+            <span class="pill-badge type-badge" style="bottom:14px;">{{ media_label|upper }}</span>
+            {% if anime.score %}
+            <span class="pill-badge score-badge" style="left:auto; right:12px;">Score {{ anime.score }}</span>
+            {% endif %}
         </div>
-        {% endif %}
+
+        <div>
+            <h1 style="margin:0 0 10px; font-family:'Chakra Petch','Segoe UI',sans-serif; font-size:34px; line-height:1.08;">
+                {{ anime.title }}
+            </h1>
+            <p style="margin:0 0 8px; color:#9ec0d1;"><strong style="color:#dff3ff;">Type:</strong> {{ media_label }}</p>
+            {% if current_media == "anime" %}
+            <p style="margin:0 0 8px; color:#9ec0d1;"><strong style="color:#dff3ff;">Episodes:</strong> {{ anime.episodes or "Unknown" }}</p>
+            {% else %}
+            <p style="margin:0 0 8px; color:#9ec0d1;"><strong style="color:#dff3ff;">Chapters:</strong> {{ anime.chapters or "Unknown" }}</p>
+            {% endif %}
+            <p style="margin:0 0 8px; color:#9ec0d1;"><strong style="color:#dff3ff;">Status:</strong> {{ anime.status or "Unknown" }}</p>
+            <p style="margin:0 0 14px; color:#9ec0d1;">
+                <strong style="color:#dff3ff;">Genres:</strong>
+                {% for genre in anime.genres %}{{ genre.name }}{% if not loop.last %}, {% endif %}{% endfor %}
+            </p>
+
+            {% if "user_id" in session %}
+            <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px;">
+                <button id="fav-btn" class="btn btn-primary">{% if is_favorite %}Remove Favorite{% else %}Add Favorite{% endif %}</button>
+                <form method="POST" action="{{ url_for('main_bp.anime_detail', anime_id=anime.mal_id, media=current_media) }}" style="display:flex; gap:8px;">
+                    <select name="status" class="input" style="min-width:170px;">
+                        <option value="">-- Select Status --</option>
+                        <option value="Watching" {% if my_status == "Watching" %}selected{% endif %}>Watching</option>
+                        <option value="Completed" {% if my_status == "Completed" %}selected{% endif %}>Completed</option>
+                        <option value="Plan to Watch" {% if my_status == "Plan to Watch" %}selected{% endif %}>Plan to Watch</option>
+                        <option value="Dropped" {% if my_status == "Dropped" %}selected{% endif %}>Dropped</option>
+                    </select>
+                    <button type="submit" class="btn btn-dark">Save</button>
+                </form>
+            </div>
+            {% endif %}
+
+            <div class="panel" style="padding:14px; background:rgba(255,255,255,0.03);">
+                <p style="margin:0; line-height:1.7; color:#c5dcea;">
+                    {{ anime.synopsis or "Synopsis not available." }}
+                </p>
+            </div>
+        </div>
     </div>
-
-    <div style="flex:1; min-width:300px;">
-        <h1>{{ anime.title }}</h1>
-
-        <p><strong>Type:</strong> {{ media_label }}</p>
-        <p><strong>Score:</strong> {{ anime.score or "N/A" }}</p>
-        {% if current_media == "anime" %}
-        <p><strong>Episodes:</strong> {{ anime.episodes or "Unknown" }}</p>
-        {% else %}
-        <p><strong>Chapters:</strong> {{ anime.chapters or "Unknown" }}</p>
-        {% endif %}
-        <p><strong>Status:</strong> {{ anime.status }}</p>
-
-        <p>
-            <strong>Genres:</strong>
-            {% for genre in anime.genres %}
-                {{ genre.name }}{% if not loop.last %}, {% endif %}
-            {% endfor %}
-        </p>
-
-        <br>
-
-        <p style="line-height:1.6;">
-            {{ anime.synopsis }}
-        </p>
-    </div>
-</div>
+</section>
 
 {% if "user_id" in session %}
 <script>
@@ -123,26 +65,16 @@ const animeData = {
     media_type: {{ current_media | tojson }}
 };
 
-document.getElementById("fav-btn").addEventListener("click", function() {
-    fetch("{{ url_for('fav_bp.toggle_favorite') }}", {
+document.getElementById("fav-btn").addEventListener("click", async () => {
+    const response = await fetch("{{ url_for('fav_bp.toggle_favorite') }}", {
         method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(animeData)
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.status === "added") {
-            document.getElementById("fav-btn").innerText = "Remove";
-        }
-
-        if (data.status === "removed") {
-            document.getElementById("fav-btn").innerText = "Add";
-        }
     });
+    if (!response.ok) return;
+    const data = await response.json();
+    document.getElementById("fav-btn").innerText = data.status === "added" ? "Remove Favorite" : "Add Favorite";
 });
 </script>
 {% endif %}
-
 {% endblock %}

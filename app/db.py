@@ -38,6 +38,195 @@ def _ensure_media_columns(connection):
     )
 
 
+def _ensure_quiz_columns(connection):
+    quiz_attempt_columns = _get_existing_columns(connection, "quiz_attempts")
+    if "media_type" not in quiz_attempt_columns:
+        connection.execute("ALTER TABLE quiz_attempts ADD COLUMN media_type TEXT DEFAULT 'anime'")
+    connection.execute("UPDATE quiz_attempts SET media_type = 'anime' WHERE media_type IS NULL OR media_type = ''")
+
+
+def _question_exists(connection, media_type, question_text):
+    row = connection.execute(
+        "SELECT 1 FROM quiz_questions WHERE media_type = ? AND question_text = ? LIMIT 1",
+        (media_type, question_text),
+    ).fetchone()
+    return row is not None
+
+
+def _insert_quiz_question(connection, question):
+    if _question_exists(connection, question["media_type"], question["question_text"]):
+        return False
+
+    cursor = connection.execute(
+        """
+        INSERT INTO quiz_questions (media_type, difficulty, question_text, explanation, is_active)
+        VALUES (?, ?, ?, ?, 1)
+        """,
+        (
+            question["media_type"],
+            question["difficulty"],
+            question["question_text"],
+            question.get("explanation", ""),
+        ),
+    )
+    question_id = cursor.lastrowid
+
+    for option_text in question["options"]:
+        connection.execute(
+            """
+            INSERT INTO quiz_options (question_id, option_text, is_correct)
+            VALUES (?, ?, ?)
+            """,
+            (question_id, option_text, 1 if option_text == question["correct"] else 0),
+        )
+    return True
+
+
+def _pick_three_distinct(items, start_index):
+    picked = []
+    idx = start_index
+    while len(picked) < 3:
+        picked.append(items[idx % len(items)])
+        idx += 1
+    return picked
+
+
+def _build_anime_seed_bank():
+    anime_pairs = [
+        ("Naruto", "Naruto Uzumaki"),
+        ("One Piece", "Monkey D. Luffy"),
+        ("Bleach", "Ichigo Kurosaki"),
+        ("Dragon Ball Z", "Goku"),
+        ("Attack on Titan", "Eren Yeager"),
+        ("My Hero Academia", "Izuku Midoriya"),
+        ("Demon Slayer", "Tanjiro Kamado"),
+        ("Jujutsu Kaisen", "Yuji Itadori"),
+        ("Death Note", "Light Yagami"),
+        ("Fullmetal Alchemist: Brotherhood", "Edward Elric"),
+        ("Hunter x Hunter", "Gon Freecss"),
+        ("Black Clover", "Asta"),
+        ("Tokyo Ghoul", "Ken Kaneki"),
+        ("Sword Art Online", "Kirito"),
+        ("Re:Zero", "Subaru Natsuki"),
+        ("Steins;Gate", "Rintaro Okabe"),
+        ("Code Geass", "Lelouch Lamperouge"),
+        ("Cowboy Bebop", "Spike Spiegel"),
+        ("Trigun", "Vash the Stampede"),
+        ("Mob Psycho 100", "Shigeo Kageyama"),
+        ("One Punch Man", "Saitama"),
+        ("Fairy Tail", "Natsu Dragneel"),
+        ("JoJo's Bizarre Adventure: Phantom Blood", "Jonathan Joestar"),
+        ("Haikyuu!!", "Shoyo Hinata"),
+        ("Kuroko's Basketball", "Tetsuya Kuroko"),
+        ("Blue Lock", "Yoichi Isagi"),
+        ("Dr. Stone", "Senku Ishigami"),
+        ("The Rising of the Shield Hero", "Naofumi Iwatani"),
+        ("That Time I Got Reincarnated as a Slime", "Rimuru Tempest"),
+        ("Noragami", "Yato"),
+        ("Chainsaw Man", "Denji"),
+        ("Spy x Family", "Loid Forger"),
+        ("Tokyo Revengers", "Takemichi Hanagaki"),
+        ("Vinland Saga", "Thorfinn"),
+    ]
+
+    all_titles = [title for title, _ in anime_pairs]
+    all_heroes = [hero for _, hero in anime_pairs]
+    bank = []
+
+    for idx, (title, hero) in enumerate(anime_pairs):
+        wrong_heroes = [name for name in all_heroes if name != hero]
+        wrong_titles = [name for name in all_titles if name != title]
+
+        hero_options = [hero] + _pick_three_distinct(wrong_heroes, idx)
+        title_options = [title] + _pick_three_distinct(wrong_titles, idx)
+        belongs_options = [hero] + _pick_three_distinct(wrong_heroes, idx + 7)
+
+        bank.append(
+            {
+                "media_type": "anime",
+                "difficulty": "easy",
+                "question_text": f"Who is the main protagonist of {title}?",
+                "options": hero_options,
+                "correct": hero,
+                "explanation": f"{hero} is the central lead character in {title}.",
+            }
+        )
+        bank.append(
+            {
+                "media_type": "anime",
+                "difficulty": "medium",
+                "question_text": f"In which anime is {hero} the main protagonist?",
+                "options": title_options,
+                "correct": title,
+                "explanation": f"{hero} is the main protagonist of {title}.",
+            }
+        )
+        bank.append(
+            {
+                "media_type": "anime",
+                "difficulty": "hard",
+                "question_text": f"Which character belongs to the anime {title}?",
+                "options": belongs_options,
+                "correct": hero,
+                "explanation": f"{hero} is a key character from {title}.",
+            }
+        )
+
+    return bank[:100]
+
+
+def _seed_quiz_data(connection):
+    anime_count_row = connection.execute(
+        "SELECT COUNT(*) AS total FROM quiz_questions WHERE media_type = 'anime'"
+    ).fetchone()
+    anime_count = anime_count_row["total"] if anime_count_row else 0
+
+    if anime_count < 100:
+        for question in _build_anime_seed_bank():
+            if anime_count >= 100:
+                break
+            if _insert_quiz_question(connection, question):
+                anime_count += 1
+
+    extra_bank = [
+        {
+            "media_type": "manga",
+            "difficulty": "easy",
+            "question_text": "Which manga is centered around a notebook that kills people?",
+            "options": ["Naruto", "Death Note", "Haikyuu!!", "Black Clover"],
+            "correct": "Death Note",
+            "explanation": "Death Note revolves around the supernatural notebook called Death Note.",
+        },
+        {
+            "media_type": "manga",
+            "difficulty": "medium",
+            "question_text": "Who wrote One Piece?",
+            "options": ["Masashi Kishimoto", "Eiichiro Oda", "Tite Kubo", "Yoshihiro Togashi"],
+            "correct": "Eiichiro Oda",
+            "explanation": "Eiichiro Oda is the author of One Piece.",
+        },
+        {
+            "media_type": "lightnovel",
+            "difficulty": "easy",
+            "question_text": "Re:Zero started as what format before major adaptation?",
+            "options": ["Web novel", "Movie script", "Game manual", "Manga one-shot"],
+            "correct": "Web novel",
+            "explanation": "Re:Zero began as a web novel by Tappei Nagatsuki.",
+        },
+        {
+            "media_type": "lightnovel",
+            "difficulty": "medium",
+            "question_text": "Which title is a popular light novel series by Kugane Maruyama?",
+            "options": ["Overlord", "Bakemonogatari", "No Game No Life", "Classroom of the Elite"],
+            "correct": "Overlord",
+            "explanation": "Overlord is written by Kugane Maruyama.",
+        },
+    ]
+
+    for question in extra_bank:
+        _insert_quiz_question(connection, question)
+
+
 def init_db():
     connection = get_db_connection()
 
@@ -78,8 +267,34 @@ def init_db():
             user_id INTEGER NOT NULL,
             score INTEGER DEFAULT 0,
             exp_earned INTEGER DEFAULT 0,
+            media_type TEXT DEFAULT 'anime',
             date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+        """
+    )
+
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS quiz_questions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            media_type TEXT NOT NULL DEFAULT 'anime',
+            difficulty TEXT NOT NULL DEFAULT 'easy',
+            question_text TEXT NOT NULL,
+            explanation TEXT DEFAULT '',
+            is_active INTEGER DEFAULT 1
+        );
+        """
+    )
+
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS quiz_options (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            question_id INTEGER NOT NULL,
+            option_text TEXT NOT NULL,
+            is_correct INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY (question_id) REFERENCES quiz_questions(id)
         );
         """
     )
@@ -98,6 +313,8 @@ def init_db():
     )
 
     _ensure_media_columns(connection)
+    _ensure_quiz_columns(connection)
+    _seed_quiz_data(connection)
 
     connection.commit()
     connection.close()

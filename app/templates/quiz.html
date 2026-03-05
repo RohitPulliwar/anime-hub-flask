@@ -3,65 +3,39 @@
 {% block title %}Quiz{% endblock %}
 
 {% block content %}
+<section class="panel" style="padding:22px;">
+    <h1 class="section-title" style="margin-top:0;">{{ media_label }} Quiz Arena</h1>
 
-<div style="max-width:800px; margin:auto; padding:40px;">
-
-    <h1 style="margin-bottom:30px; text-align:center;">
-        Anime Quiz
-    </h1>
-
-    <form method="POST">
-
-        {% for question in questions %}
-        {% set q_index = loop.index0 %}
-
-        <div style="
-            background: rgba(255,255,255,0.05);
-            padding:20px;
-            border-radius:12px;
-            margin-bottom:25px;
-        ">
-
-            <h3 style="margin-bottom:15px;">
-                {{ loop.index }}. {{ question.question }}
-            </h3>
-
-            {% for option in question.options %}
-
-                <div style="margin-bottom:8px;">
-                    <label>
-                        <input type="radio"
-                               name="question-{{ q_index }}"
-                               value="{{ option }}"
-                               required>
-
-                        {{ option }}
-                    </label>
-                </div>
-
-            {% endfor %}
-
-        </div>
-
-        {% endfor %}
-
-        <div style="text-align:center;">
-            <button type="submit"
-                    style="
-                        padding:10px 20px;
-                        border:none;
-                        border-radius:8px;
-                        background: linear-gradient(45deg, #00ffff, #ff00ff);
-                        color:black;
-                        font-weight:bold;
-                        cursor:pointer;
-                    ">
-                Submit Quiz
-            </button>
-        </div>
-
+    <form method="GET" action="{{ url_for('quiz_bp.quiz') }}" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:18px;">
+        <input type="hidden" name="media" value="{{ current_media }}">
+        <label for="difficulty" style="color:#9ec0d1; font-size:14px;">Difficulty</label>
+        <select id="difficulty" name="difficulty" class="input" style="width:auto; min-width:150px;">
+            <option value="all" {% if current_difficulty == 'all' %}selected{% endif %}>All</option>
+            <option value="easy" {% if current_difficulty == 'easy' %}selected{% endif %}>Easy</option>
+            <option value="medium" {% if current_difficulty == 'medium' %}selected{% endif %}>Medium</option>
+            <option value="hard" {% if current_difficulty == 'hard' %}selected{% endif %}>Hard</option>
+        </select>
+        <button type="submit" class="btn btn-dark">Apply</button>
     </form>
 
-</div>
+    <form method="POST" action="{{ url_for('quiz_bp.quiz', media=current_media) }}">
+        {% for question in questions %}
+        <div class="panel" style="padding:15px; margin-bottom:14px; background:rgba(255,255,255,0.03);">
+            <h3 style="margin:0 0 8px; font-size:20px; font-family:'Chakra Petch','Segoe UI',sans-serif;">{{ loop.index }}. {{ question.question }}</h3>
+            <p style="margin:0 0 10px; color:#9ec0d1; font-size:13px;">Difficulty: {{ question.difficulty|title }}</p>
 
+            {% for option in question.options %}
+            <label style="display:flex; align-items:center; gap:9px; margin-bottom:8px; color:#d8edf8;">
+                <input type="radio" name="question-{{ question.id }}" value="{{ option.id }}" required>
+                <span>{{ option.text }}</span>
+            </label>
+            {% endfor %}
+        </div>
+        {% endfor %}
+
+        <div style="text-align:center; margin-top:14px;">
+            <button type="submit" class="btn btn-primary">Submit Quiz</button>
+        </div>
+    </form>
+</section>
 {% endblock %}

@@ -3,138 +3,424 @@
 {% block title %}{{ media_label }} World{% endblock %}
 
 {% block content %}
+<style>
+    @import url("https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Lexend:wght@400;500;600;700&display=swap");
 
-<div style="
-    text-align:center;
-    padding:60px 20px 40px 20px;
-    background:linear-gradient(135deg, #1f1f1f, #151515);
-    border-radius:16px;
-    margin-bottom:50px;
-">
-    <h1 style="font-size:36px; margin-bottom:15px;">
-        Discover Your Next Favorite {{ media_label }}
-    </h1>
+    .showcase-shell {
+        position: relative;
+        display: grid;
+        gap: 26px;
+    }
 
-    <p style="color:#aaa; font-size:16px; margin-bottom:25px;">
-        Track, explore, and stay updated with trending titles worldwide.
-    </p>
+    .showcase-shell::before {
+        content: "";
+        position: absolute;
+        inset: -30px -10px auto;
+        height: 320px;
+        border-radius: 24px;
+        background:
+            radial-gradient(circle at 14% 18%, rgba(255, 128, 76, 0.24), transparent 42%),
+            radial-gradient(circle at 79% 22%, rgba(42, 212, 217, 0.2), transparent 46%);
+        pointer-events: none;
+        z-index: 0;
+    }
 
-    {% if not session.get("user_id") %}
-        <a href="{{ url_for('auth_bp.register') }}" class="btn btn-primary" style="margin-right:10px;">
-            Get Started
-        </a>
-        <a href="{{ url_for('auth_bp.login') }}" class="btn btn-dark">
-            Login
-        </a>
-    {% else %}
-        <a href="{{ url_for('main_bp.dashboard', media=current_media) }}" class="btn btn-primary">
-            Go to Dashboard
-        </a>
-    {% endif %}
-</div>
+    .showcase-hero {
+        position: relative;
+        z-index: 1;
+        border-radius: 24px;
+        border: 1px solid rgba(153, 207, 232, 0.28);
+        background:
+            linear-gradient(132deg, rgba(7, 22, 33, 0.86), rgba(9, 29, 40, 0.94)),
+            radial-gradient(circle at 80% 15%, rgba(251, 128, 86, 0.18), transparent 38%);
+        padding: 34px;
+        display: grid;
+        grid-template-columns: 1.2fr 0.8fr;
+        gap: 24px;
+        box-shadow: 0 24px 46px rgba(2, 9, 14, 0.52);
+        animation: rise 0.6s ease both;
+    }
 
-<h3 style="
-    margin-bottom:20px;
-    font-size:20px;
-    font-weight:600;
-    border-left:4px solid #ff4c4c;
-    padding-left:12px;
-">
-    Trending {{ media_label }}
-</h3>
+    .hero-tag {
+        display: inline-flex;
+        align-items: center;
+        padding: 7px 11px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 999px;
+        font-size: 12px;
+        letter-spacing: 1px;
+        color: #d2edf8;
+        margin-bottom: 12px;
+        text-transform: uppercase;
+    }
 
-<div style="
-    display:grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap:24px;
-">
-    {% for anime in trending %}
-    <div style="position:relative;">
-        <a href="{{ url_for('main_bp.anime_detail', anime_id=anime['mal_id'], media=current_media) }}"
-           style="text-decoration:none; color:white;">
-            <div style="
-                background:#1e1e1e;
-                border-radius:16px;
-                overflow:hidden;
-                box-shadow:0 6px 18px rgba(0,0,0,0.45);
-                transition:0.25s ease;
-            "
-            onmouseover="this.style.transform='scale(1.06)'"
-            onmouseout="this.style.transform='scale(1)'">
-                <div style="position:relative;">
-                    <img src="{{ anime['images']['jpg']['image_url'] }}"
-                         style="width:100%; height:260px; object-fit:cover;">
+    .showcase-title {
+        margin: 0 0 11px;
+        font-family: "Bebas Neue", sans-serif;
+        font-size: clamp(44px, 9vw, 78px);
+        letter-spacing: 1.2px;
+        line-height: 0.95;
+        color: #fff7ed;
+    }
 
-                    {% if anime['score'] %}
-                    <div style="
-                        position:absolute;
-                        top:12px;
-                        left:12px;
-                        background:#ff4c4c;
-                        padding:6px 10px;
-                        border-radius:10px;
-                        font-size:12px;
-                        font-weight:600;
-                    ">
-                        Score {{ anime['score'] }}
-                    </div>
-                    {% endif %}
+    .showcase-copy {
+        margin: 0;
+        max-width: 640px;
+        color: #9dc0d2;
+        line-height: 1.65;
+        font-family: "Lexend", sans-serif;
+        font-size: 15px;
+    }
 
-                    <div style="
-                        position:absolute;
-                        bottom:12px;
-                        left:12px;
-                        background:rgba(0,0,0,0.72);
-                        border:1px solid #555;
-                        padding:4px 8px;
-                        border-radius:999px;
-                        font-size:11px;
-                        letter-spacing:0.6px;
-                    ">
-                        {{ media_label|upper }}
-                    </div>
-                </div>
+    .hero-actions {
+        margin-top: 22px;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
 
-                <div style="padding:14px;">
-                    <p style="
-                        font-size:14px;
-                        font-weight:500;
-                        color:#f1f1f1;
-                        min-height:40px;
-                    ">
-                        {{ anime['title'][:45] }}
-                        {% if anime['title']|length > 45 %}...{% endif %}
+    .btn-glow {
+        border-radius: 11px;
+        border: 1px solid rgba(255, 137, 96, 0.6);
+        color: #fff7ef;
+        background: linear-gradient(90deg, #e5502a, #ff7f4c);
+        text-decoration: none;
+        padding: 10px 15px;
+        font-weight: 700;
+        font-size: 14px;
+        box-shadow: 0 10px 22px rgba(229, 80, 42, 0.34);
+    }
+
+    .btn-outline {
+        border-radius: 11px;
+        border: 1px solid rgba(155, 216, 233, 0.32);
+        color: #d8f2fa;
+        text-decoration: none;
+        padding: 10px 15px;
+        background: rgba(255, 255, 255, 0.04);
+        font-weight: 600;
+        font-size: 14px;
+    }
+
+    .hero-stats {
+        border-radius: 18px;
+        border: 1px solid rgba(141, 202, 226, 0.24);
+        background: rgba(4, 17, 24, 0.72);
+        padding: 14px;
+        display: grid;
+        gap: 11px;
+    }
+
+    .stat-card {
+        border-radius: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.03);
+    }
+
+    .stat-label {
+        margin: 0 0 5px;
+        color: #85adc0;
+        font-size: 11px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+    }
+
+    .stat-value {
+        margin: 0;
+        color: #f3fbff;
+        font-size: 22px;
+        font-weight: 700;
+        font-family: "Lexend", sans-serif;
+    }
+
+    .stat-meta {
+        margin: 5px 0 0;
+        color: #9ec5d8;
+        font-size: 12px;
+    }
+
+    .showcase-grid {
+        display: grid;
+        grid-template-columns: minmax(260px, 0.95fr) minmax(0, 1.05fr);
+        gap: 20px;
+        align-items: start;
+    }
+
+    .spotlight {
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: linear-gradient(170deg, rgba(14, 34, 49, 0.92), rgba(7, 20, 28, 0.92));
+        overflow: hidden;
+        box-shadow: 0 16px 34px rgba(2, 9, 14, 0.52);
+        animation: rise 0.78s ease both;
+    }
+
+    .spotlight img {
+        width: 100%;
+        height: 344px;
+        object-fit: cover;
+        display: block;
+    }
+
+    .spotlight-content {
+        padding: 14px;
+    }
+
+    .spotlight-kicker {
+        margin: 0;
+        color: #82f0dc;
+        font-size: 11px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+    }
+
+    .spotlight h3 {
+        margin: 7px 0;
+        font-size: 19px;
+        line-height: 1.2;
+        color: #eff9ff;
+    }
+
+    .spotlight p {
+        margin: 0;
+        color: #9fc2d2;
+        font-size: 13px;
+        line-height: 1.55;
+    }
+
+    .trend-panel {
+        border-radius: 20px;
+        border: 1px solid rgba(158, 215, 238, 0.22);
+        padding: 16px;
+        background: linear-gradient(155deg, rgba(9, 25, 35, 0.84), rgba(6, 17, 24, 0.84));
+        box-shadow: 0 16px 34px rgba(2, 9, 14, 0.45);
+        animation: rise 0.86s ease both;
+    }
+
+    .trend-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 14px;
+    }
+
+    .trend-title {
+        margin: 0;
+        font-family: "Bebas Neue", sans-serif;
+        font-size: 34px;
+        letter-spacing: 1px;
+    }
+
+    .trend-badge {
+        color: #072430;
+        background: #74e6ea;
+        border-radius: 999px;
+        font-size: 11px;
+        padding: 5px 8px;
+        font-weight: 700;
+    }
+
+    .trend-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .trend-card {
+        position: relative;
+        overflow: hidden;
+        border-radius: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.02);
+        text-decoration: none;
+        color: inherit;
+        transform: translateY(12px);
+        opacity: 0;
+        animation: cardIn 0.5s ease forwards;
+    }
+
+    .trend-card:nth-child(2) { animation-delay: 0.06s; }
+    .trend-card:nth-child(3) { animation-delay: 0.12s; }
+    .trend-card:nth-child(4) { animation-delay: 0.18s; }
+    .trend-card:nth-child(5) { animation-delay: 0.24s; }
+    .trend-card:nth-child(6) { animation-delay: 0.3s; }
+
+    .trend-card img {
+        width: 100%;
+        height: 190px;
+        object-fit: cover;
+        display: block;
+    }
+
+    .rank-chip {
+        position: absolute;
+        top: 8px;
+        left: 8px;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 5px 7px;
+        border-radius: 7px;
+        background: rgba(2, 13, 19, 0.8);
+        color: #f2faff;
+        border: 1px solid rgba(145, 210, 234, 0.34);
+    }
+
+    .trend-info {
+        padding: 10px 10px 11px;
+    }
+
+    .trend-name {
+        margin: 0;
+        font-family: "Lexend", sans-serif;
+        font-size: 13px;
+        color: #eaf8ff;
+        min-height: 35px;
+        line-height: 1.34;
+    }
+
+    .trend-score {
+        margin: 6px 0 0;
+        color: #8fc9db;
+        font-size: 12px;
+    }
+
+    .favorite-btn {
+        background: rgba(3, 13, 20, 0.8);
+    }
+
+    @keyframes rise {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes cardIn {
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 980px) {
+        .showcase-hero {
+            grid-template-columns: 1fr;
+            padding: 22px;
+        }
+
+        .showcase-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .trend-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .spotlight img {
+            height: 270px;
+        }
+    }
+
+    @media (max-width: 560px) {
+        .trend-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .showcase-title {
+            font-size: clamp(40px, 15vw, 60px);
+        }
+    }
+</style>
+
+{% set hero_item = trending[0] if trending else None %}
+{% set card_items = trending[1:7] if trending|length > 1 else [] %}
+
+<section class="showcase-shell">
+    <article class="showcase-hero">
+        <div>
+            <span class="hero-tag">{{ media_label }} Universe</span>
+            <h1 class="showcase-title">WATCH WILD STORIES.</h1>
+            <p class="showcase-copy">
+                A sharper way to browse {{ media_label|lower }}: striking covers, top-ranked hits, and one-tap favorites tuned for your own list.
+            </p>
+            <div class="hero-actions">
+                {% if not session.get("user_id") %}
+                    <a href="{{ url_for('auth_bp.register') }}" class="btn-glow">Start Tracking</a>
+                    <a href="{{ url_for('auth_bp.login') }}" class="btn-outline">I Already Have an Account</a>
+                {% else %}
+                    <a href="{{ url_for('main_bp.dashboard', media=current_media) }}" class="btn-glow">Open Dashboard</a>
+                    <a href="{{ url_for('main_bp.search', media=current_media) }}" class="btn-outline">Search Titles</a>
+                {% endif %}
+            </div>
+        </div>
+
+        <aside class="hero-stats">
+            <div class="stat-card">
+                <p class="stat-label">Now Showing</p>
+                <p class="stat-value">{{ media_label }}</p>
+                <p class="stat-meta">Mode switches with your media tabs above.</p>
+            </div>
+            <div class="stat-card">
+                <p class="stat-label">Top Pool</p>
+                <p class="stat-value">{{ trending|length }}</p>
+                <p class="stat-meta">Fresh cards pulled from live popularity data.</p>
+            </div>
+            <div class="stat-card">
+                <p class="stat-label">Favorites Sync</p>
+                <p class="stat-value">{% if session.get("user_id") %}Enabled{% else %}Login Needed{% endif %}</p>
+                <p class="stat-meta">Tap hearts to update your profile list instantly.</p>
+            </div>
+        </aside>
+    </article>
+
+    <div class="showcase-grid">
+        {% if hero_item %}
+        <article class="spotlight">
+            <a href="{{ url_for('main_bp.anime_detail', anime_id=hero_item['mal_id'], media=current_media) }}" style="text-decoration:none; color:inherit;">
+                <img src="{{ hero_item['images']['jpg']['large_image_url'] or hero_item['images']['jpg']['image_url'] }}" alt="{{ hero_item['title'] }}">
+                <div class="spotlight-content">
+                    <p class="spotlight-kicker">Top Spotlight</p>
+                    <h3>{{ hero_item['title'][:62] }}{% if hero_item['title']|length > 62 %}...{% endif %}</h3>
+                    <p>
+                        {% if hero_item['score'] %}Score {{ hero_item['score'] }}{% else %}Unrated{% endif %}
+                        | {{ media_label }}
                     </p>
                 </div>
-            </div>
-        </a>
-
-        {% if "user_id" in session %}
-        <button
-            class="favorite-btn"
-            data-anime-id="{{ anime['mal_id'] }}"
-            data-anime-title="{{ anime['title'] }}"
-            data-anime-image="{{ anime['images']['jpg']['image_url'] }}"
-            data-media-type="{{ current_media }}"
-            style="
-                position:absolute;
-                top:10px;
-                right:10px;
-                border:none;
-                border-radius:999px;
-                width:36px;
-                height:36px;
-                cursor:pointer;
-                font-size:18px;
-                background:rgba(0,0,0,0.65);
-                color:{{ '#ff4c4c' if anime['mal_id'] in favorite_ids else '#ffffff' }};
-            ">
-            {% if anime['mal_id'] in favorite_ids %}&#10084;{% else %}&#9825;{% endif %}
-        </button>
+            </a>
+        </article>
         {% endif %}
+
+        <section class="trend-panel">
+            <div class="trend-header">
+                <h2 class="trend-title">Top Picks</h2>
+                <span class="trend-badge">Live List</span>
+            </div>
+
+            <div class="trend-grid">
+                {% for anime in card_items %}
+                <div style="position:relative;">
+                    <a class="trend-card" href="{{ url_for('main_bp.anime_detail', anime_id=anime['mal_id'], media=current_media) }}">
+                        <img src="{{ anime['images']['jpg']['image_url'] }}" alt="{{ anime['title'] }}">
+                        <span class="rank-chip">#{{ loop.index + 1 }}</span>
+                        <div class="trend-info">
+                            <p class="trend-name">{{ anime['title'][:36] }}{% if anime['title']|length > 36 %}...{% endif %}</p>
+                            <p class="trend-score">{% if anime['score'] %}Score {{ anime['score'] }}{% else %}No score yet{% endif %}</p>
+                        </div>
+                    </a>
+
+                    {% if "user_id" in session %}
+                    <button
+                        class="favorite-btn"
+                        data-anime-id="{{ anime['mal_id'] }}"
+                        data-anime-title="{{ anime['title'] }}"
+                        data-anime-image="{{ anime['images']['jpg']['image_url'] }}"
+                        data-media-type="{{ current_media }}"
+                        style="color:{{ '#ff6d54' if anime['mal_id'] in favorite_ids else '#ffffff' }};">
+                        {% if anime['mal_id'] in favorite_ids %}&#10084;{% else %}&#9825;{% endif %}
+                    </button>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </section>
     </div>
-    {% endfor %}
-</div>
+</section>
 
 {% if "user_id" in session %}
 <script>
@@ -160,10 +446,9 @@ document.querySelectorAll(".favorite-btn").forEach((button) => {
         const data = await response.json();
         const isAdded = data.status === "added";
         button.innerHTML = isAdded ? "&#10084;" : "&#9825;";
-        button.style.color = isAdded ? "#ff4c4c" : "#ffffff";
+        button.style.color = isAdded ? "#ff6d54" : "#ffffff";
     });
 });
 </script>
 {% endif %}
-
 {% endblock %}

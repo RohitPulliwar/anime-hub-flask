@@ -2,119 +2,397 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Anime World{% endblock %}</title>
-
     <style>
+        @import url("https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Outfit:wght@400;500;600;700&display=swap");
+
+        :root {
+            --bg-0: #061019;
+            --bg-1: #0b1c2a;
+            --bg-2: #112a3a;
+            --panel: rgba(10, 26, 37, 0.78);
+            --panel-strong: rgba(13, 30, 43, 0.9);
+            --line: rgba(144, 195, 219, 0.28);
+            --text: #eaf8ff;
+            --muted: #99b7c6;
+            --accent: #ff5d3a;
+            --accent-2: #2ad4d9;
+            --shadow: 0 18px 40px rgba(1, 6, 11, 0.48);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             margin: 0;
-            font-family: Arial, Helvetica, sans-serif;
-            background-color: #121212;
-            color: #ffffff;
+            font-family: "Outfit", "Segoe UI", sans-serif;
+            color: var(--text);
+            min-height: 100vh;
+            background:
+                radial-gradient(circle at 7% 6%, rgba(42, 212, 217, 0.18), transparent 34%),
+                radial-gradient(circle at 92% 11%, rgba(255, 93, 58, 0.16), transparent 36%),
+                linear-gradient(135deg, var(--bg-0), var(--bg-1) 52%, var(--bg-2));
         }
 
         .navbar {
+            position: sticky;
+            top: 0;
+            z-index: 10;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 15px 40px;
-            background-color: #1f1f1f;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+            padding: 16px 28px;
+            border-bottom: 1px solid var(--line);
+            background: rgba(7, 20, 30, 0.72);
+            backdrop-filter: blur(10px);
+        }
+
+        .nav-left,
+        .nav-right {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
         }
 
         .nav-left a,
         .nav-right a {
             text-decoration: none;
-            color: white;
-            margin-right: 20px;
-            font-weight: 500;
+            color: var(--text);
+            font-size: 14px;
+            padding: 7px 11px;
+            border-radius: 8px;
+            border: 1px solid transparent;
+            transition: 0.2s ease;
         }
 
         .nav-left a:hover,
         .nav-right a:hover {
-            color: #ff4c4c;
+            border-color: var(--line);
+            color: var(--accent-2);
+            background: rgba(255, 255, 255, 0.04);
         }
 
         .brand {
-            font-size: 20px;
-            font-weight: bold;
-            color: #ff4c4c;
+            margin-right: 8px;
+            font-family: "Chakra Petch", "Segoe UI", sans-serif;
+            font-size: 21px;
+            letter-spacing: 0.8px;
+            font-weight: 700;
+            color: #fff3ea;
+            text-shadow: 0 0 20px rgba(255, 93, 58, 0.28);
         }
 
         .container {
-            max-width: 1000px;
-            margin: auto;
-            padding: 40px 20px;
+            max-width: 1160px;
+            margin: 0 auto;
+            padding: 26px 18px 42px;
         }
 
         .btn {
-            padding: 10px 16px;
-            border-radius: 6px;
+            border: none;
+            border-radius: 10px;
+            padding: 10px 14px;
             text-decoration: none;
-            font-weight: 500;
-            display: inline-block;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: 0.22s ease;
+            font-family: "Outfit", "Segoe UI", sans-serif;
         }
 
         .btn-primary {
-            background-color: #ff4c4c;
-            color: white;
+            background: linear-gradient(90deg, #ff784c, #ff5d3a);
+            color: #fff;
+            box-shadow: 0 8px 20px rgba(255, 93, 58, 0.28);
         }
 
         .btn-primary:hover {
-            background-color: #ff1f1f;
+            transform: translateY(-1px);
+            box-shadow: 0 12px 24px rgba(255, 93, 58, 0.35);
         }
 
         .btn-dark {
-            background-color: #333;
-            color: white;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text);
+            border: 1px solid var(--line);
         }
 
         .btn-dark:hover {
-            background-color: #555;
+            border-color: rgba(255, 255, 255, 0.35);
+            background: rgba(255, 255, 255, 0.09);
         }
 
         .flash {
-            padding: 10px 15px;
-            margin-bottom: 20px;
-            border-radius: 6px;
-            background-color: #333;
-            color: #ff4c4c;
+            margin-bottom: 16px;
+            border: 1px solid rgba(255, 93, 58, 0.45);
+            background: rgba(255, 93, 58, 0.14);
+            color: #ffe8e1;
+            border-radius: 12px;
+            padding: 11px 12px;
+            font-size: 14px;
         }
 
         .media-tabs {
             display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 9px;
+            margin-bottom: 18px;
         }
 
         .media-pill {
             text-decoration: none;
-            color: #d9d9d9;
-            border: 1px solid #444;
-            padding: 6px 12px;
+            color: #c5dde7;
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.02);
+            padding: 7px 13px;
             border-radius: 999px;
             font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
             transition: 0.2s ease;
         }
 
         .media-pill:hover {
-            border-color: #ff4c4c;
-            color: #ffffff;
+            color: #fff;
+            border-color: rgba(255, 255, 255, 0.32);
         }
 
         .media-pill.active {
-            background: #ff4c4c;
-            border-color: #ff4c4c;
-            color: #ffffff;
-            font-weight: 600;
+            background: linear-gradient(90deg, #1fcdc9, #4bd8dd);
+            border-color: transparent;
+            color: #0a2532;
+        }
+
+        .page-hero {
+            text-align: center;
+            padding: 54px 20px 46px;
+            background:
+                linear-gradient(135deg, rgba(14, 33, 47, 0.88), rgba(8, 23, 33, 0.94)),
+                radial-gradient(circle at 20% 30%, rgba(42, 212, 217, 0.24), transparent 35%);
+            border: 1px solid var(--line);
+            border-radius: 22px;
+            box-shadow: var(--shadow);
+            margin-bottom: 34px;
+        }
+
+        .hero-title {
+            margin: 0 0 12px;
+            font-family: "Chakra Petch", "Segoe UI", sans-serif;
+            font-size: clamp(32px, 4vw, 47px);
+            line-height: 1.05;
+            letter-spacing: 0.8px;
+        }
+
+        .hero-copy {
+            color: var(--muted);
+            max-width: 760px;
+            margin: 0 auto 24px;
+            line-height: 1.58;
+            font-size: 16px;
+        }
+
+        .section-title {
+            margin: 0 0 18px;
+            font-family: "Chakra Petch", "Segoe UI", sans-serif;
+            font-size: 23px;
+            letter-spacing: 0.6px;
+            color: #edf8ff;
+        }
+
+        .media-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
+            gap: 18px;
+        }
+
+        .media-card {
+            position: relative;
+            text-decoration: none;
+            color: inherit;
+            border-radius: 18px;
+            overflow: hidden;
+            border: 1px solid var(--line);
+            background: var(--panel-strong);
+            box-shadow: 0 12px 26px rgba(3, 9, 14, 0.45);
+            transition: 0.24s ease;
+            transform-origin: center;
+        }
+
+        .media-card:hover {
+            transform: translateY(-4px) scale(1.01);
+            border-color: rgba(255, 255, 255, 0.3);
+            box-shadow: 0 16px 30px rgba(3, 9, 14, 0.55);
+        }
+
+        .media-thumb {
+            width: 100%;
+            height: 272px;
+            object-fit: cover;
+            display: block;
+        }
+
+        .media-info {
+            padding: 12px 13px 14px;
+        }
+
+        .media-name {
+            margin: 0;
+            font-size: 14px;
+            line-height: 1.4;
+            color: #ecf6fb;
+            min-height: 40px;
+            font-weight: 500;
+        }
+
+        .pill-badge {
+            position: absolute;
+            border-radius: 999px;
+            padding: 5px 8px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.6px;
+        }
+
+        .score-badge {
+            top: 10px;
+            left: 10px;
+            background: linear-gradient(90deg, #ff784c, #ff5d3a);
+            color: #fff;
+        }
+
+        .type-badge {
+            bottom: 10px;
+            left: 10px;
+            background: rgba(4, 15, 23, 0.78);
+            border: 1px solid rgba(145, 201, 225, 0.35);
+            color: #d8f8ff;
+        }
+
+        .favorite-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 35px;
+            height: 35px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 999px;
+            background: rgba(2, 11, 17, 0.72);
+            color: #fff;
+            font-size: 16px;
+            cursor: pointer;
+            transition: 0.2s ease;
+            z-index: 2;
+        }
+
+        .favorite-btn:hover {
+            border-color: rgba(255, 255, 255, 0.45);
+            transform: scale(1.06);
+        }
+
+        .panel {
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            background: var(--panel);
+            box-shadow: var(--shadow);
+        }
+
+        .search-row {
+            display: flex;
+            gap: 10px;
+            max-width: 640px;
+            margin-bottom: 28px;
+        }
+
+        .input {
+            width: 100%;
+            border-radius: 11px;
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+            padding: 10px 12px;
+            outline: none;
+            font-family: "Outfit", "Segoe UI", sans-serif;
+        }
+
+        .input::placeholder {
+            color: #8eb0c1;
+        }
+
+        .input:focus {
+            border-color: rgba(42, 212, 217, 0.5);
+            box-shadow: 0 0 0 3px rgba(42, 212, 217, 0.14);
+        }
+
+        .auth-shell {
+            min-height: 62vh;
+            display: grid;
+            place-items: center;
+        }
+
+        .auth-card {
+            width: min(460px, 100%);
+            padding: 26px;
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            background: var(--panel);
+            box-shadow: var(--shadow);
+        }
+
+        .auth-card h1 {
+            margin: 0 0 16px;
+            font-family: "Chakra Petch", "Segoe UI", sans-serif;
+            font-size: 28px;
+        }
+
+        .field {
+            margin-bottom: 12px;
+        }
+
+        .field label {
+            display: block;
+            font-size: 13px;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+
+        @media (max-width: 860px) {
+            .navbar {
+                padding: 13px 14px;
+            }
+
+            .brand {
+                width: 100%;
+                margin-bottom: 2px;
+            }
+
+            .container {
+                padding: 18px 12px 30px;
+            }
+
+            .media-grid {
+                grid-template-columns: repeat(auto-fill, minmax(162px, 1fr));
+                gap: 12px;
+            }
+
+            .media-thumb {
+                height: 232px;
+            }
         }
     </style>
 </head>
 <body>
     {% set active_media = current_media|default('anime') %}
+    {% set media_switch_endpoint = media_switch_endpoint|default('main_bp.home') %}
+    {% set media_switch_difficulty = media_switch_difficulty|default(None) %}
 
     <div class="navbar">
         <div class="nav-left">
-            <span class="brand">Anime World</span>
+            <span class="brand">OTAKU GRID</span>
             <a href="{{ url_for('main_bp.home', media=active_media) }}">Home</a>
             {% if "user_id" in session %}
                 <a href="{{ url_for('main_bp.search', media=active_media) }}">Search</a>
@@ -125,7 +403,7 @@
 
         <div class="nav-right">
             {% if "user_id" in session %}
-                <span style="margin-right:15px;">Hello, {{ session.get("username") }}</span>
+                <span style="font-size:13px; color:var(--muted); margin-right:8px;">{{ session.get("username") }}</span>
                 <a href="{{ url_for('auth_bp.logout') }}" class="btn btn-dark">Logout</a>
             {% else %}
                 <a href="{{ url_for('auth_bp.login') }}" class="btn btn-dark">Login</a>
@@ -137,15 +415,15 @@
     <div class="container">
         <div class="media-tabs">
             <a class="media-pill {% if active_media == 'anime' %}active{% endif %}"
-               href="{{ url_for('main_bp.home', media='anime') }}">
+               href="{% if media_switch_difficulty %}{{ url_for(media_switch_endpoint, media='anime', difficulty=media_switch_difficulty) }}{% else %}{{ url_for(media_switch_endpoint, media='anime') }}{% endif %}">
                 Anime
             </a>
             <a class="media-pill {% if active_media == 'manga' %}active{% endif %}"
-               href="{{ url_for('main_bp.home', media='manga') }}">
+               href="{% if media_switch_difficulty %}{{ url_for(media_switch_endpoint, media='manga', difficulty=media_switch_difficulty) }}{% else %}{{ url_for(media_switch_endpoint, media='manga') }}{% endif %}">
                 Manga
             </a>
             <a class="media-pill {% if active_media == 'lightnovel' %}active{% endif %}"
-               href="{{ url_for('main_bp.home', media='lightnovel') }}">
+               href="{% if media_switch_difficulty %}{{ url_for(media_switch_endpoint, media='lightnovel', difficulty=media_switch_difficulty) }}{% else %}{{ url_for(media_switch_endpoint, media='lightnovel') }}{% endif %}">
                 Light Novel
             </a>
         </div>
@@ -158,9 +436,7 @@
             {% endif %}
         {% endwith %}
 
-        {% block content %}
-        {% endblock %}
+        {% block content %}{% endblock %}
     </div>
-
 </body>
 </html>

@@ -276,6 +276,7 @@ def anime_detail(anime_id):
 @main_bp.route("/profile", methods=["GET", "POST"])
 @login_required
 def profile():
+    media_type = _get_media_type()
     user_id = int(session["user_id"])
     connection = get_db_connection()
     cursor = connection.cursor()
@@ -331,7 +332,7 @@ def profile():
         fav_count=total_favorites,
         badges=[],
         avatar_items=[],
-        current_media="anime",
+        current_media=media_type,
     )
 
 

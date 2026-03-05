@@ -486,7 +486,7 @@
                 <button class="save-btn" type="submit">Save Profile Theme</button>
             </form>
 
-            <a class="quiz-link" href="{{ url_for('quiz_bp.quiz') }}">Start Quiz</a>
+            <a class="quiz-link" href="{{ url_for('quiz_bp.quiz', media=current_media|default('anime')) }}">Start Quiz</a>
         </div>
     </section>
 
