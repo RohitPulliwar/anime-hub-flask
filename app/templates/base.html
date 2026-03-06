@@ -330,6 +330,11 @@
             box-shadow: 0 0 0 3px rgba(42, 212, 217, 0.14);
         }
 
+        select.input option {
+            color: #0b2230;
+            background: #ffffff;
+        }
+
         .auth-shell {
             min-height: 62vh;
             display: grid;
@@ -391,6 +396,7 @@
     {% set active_media = current_media|default('anime') %}
     {% set media_switch_endpoint = media_switch_endpoint|default('main_bp.home') %}
     {% set media_switch_difficulty = media_switch_difficulty|default(None) %}
+    {% set media_switch_series = media_switch_series|default(None) %}
 
     <div class="navbar">
         <div class="nav-left">
@@ -417,15 +423,15 @@
     <div class="container">
         <div class="media-tabs">
             <a class="media-pill {% if active_media == 'anime' %}active{% endif %}"
-               href="{% if media_switch_difficulty %}{{ url_for(media_switch_endpoint, media='anime', difficulty=media_switch_difficulty) }}{% else %}{{ url_for(media_switch_endpoint, media='anime') }}{% endif %}">
+               href="{% if media_switch_difficulty and media_switch_series %}{{ url_for(media_switch_endpoint, media='anime', difficulty=media_switch_difficulty, series=media_switch_series) }}{% elif media_switch_difficulty %}{{ url_for(media_switch_endpoint, media='anime', difficulty=media_switch_difficulty) }}{% elif media_switch_series %}{{ url_for(media_switch_endpoint, media='anime', series=media_switch_series) }}{% else %}{{ url_for(media_switch_endpoint, media='anime') }}{% endif %}">
                 Anime
             </a>
             <a class="media-pill {% if active_media == 'manga' %}active{% endif %}"
-               href="{% if media_switch_difficulty %}{{ url_for(media_switch_endpoint, media='manga', difficulty=media_switch_difficulty) }}{% else %}{{ url_for(media_switch_endpoint, media='manga') }}{% endif %}">
+               href="{% if media_switch_difficulty and media_switch_series %}{{ url_for(media_switch_endpoint, media='manga', difficulty=media_switch_difficulty, series=media_switch_series) }}{% elif media_switch_difficulty %}{{ url_for(media_switch_endpoint, media='manga', difficulty=media_switch_difficulty) }}{% elif media_switch_series %}{{ url_for(media_switch_endpoint, media='manga', series=media_switch_series) }}{% else %}{{ url_for(media_switch_endpoint, media='manga') }}{% endif %}">
                 Manga
             </a>
             <a class="media-pill {% if active_media == 'lightnovel' %}active{% endif %}"
-               href="{% if media_switch_difficulty %}{{ url_for(media_switch_endpoint, media='lightnovel', difficulty=media_switch_difficulty) }}{% else %}{{ url_for(media_switch_endpoint, media='lightnovel') }}{% endif %}">
+               href="{% if media_switch_difficulty and media_switch_series %}{{ url_for(media_switch_endpoint, media='lightnovel', difficulty=media_switch_difficulty, series=media_switch_series) }}{% elif media_switch_difficulty %}{{ url_for(media_switch_endpoint, media='lightnovel', difficulty=media_switch_difficulty) }}{% elif media_switch_series %}{{ url_for(media_switch_endpoint, media='lightnovel', series=media_switch_series) }}{% else %}{{ url_for(media_switch_endpoint, media='lightnovel') }}{% endif %}">
                 Light Novel
             </a>
         </div>

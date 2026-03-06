@@ -36,7 +36,7 @@
             <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px;">
                 <button id="fav-btn" class="btn btn-primary">{% if is_favorite %}Remove Favorite{% else %}Add Favorite{% endif %}</button>
                 <form method="POST" action="{{ url_for('main_bp.anime_detail', anime_id=anime.id, media=current_media) }}" style="display:flex; gap:8px;">
-                    <select name="status" class="input" style="min-width:170px; color:white;">
+                    <select name="status" class="input" style="min-width:170px;">
     <option value="">-- Select Status --</option>
     <option value="Watching" {% if my_status == "Watching" %}selected{% endif %}>Watching</option>
     <option value="Completed" {% if my_status == "Completed" %}selected{% endif %}>Completed</option>

@@ -1,4 +1,5 @@
 import sqlite3
+import re
 
 DATABASE_PATH = "database.db"
 
@@ -22,6 +23,8 @@ def _ensure_user_profile_columns(connection):
         connection.execute("ALTER TABLE users ADD COLUMN banner_url TEXT DEFAULT ''")
     if "theme_color" not in existing_columns:
         connection.execute("ALTER TABLE users ADD COLUMN theme_color TEXT DEFAULT '#40e0d0'")
+    if "avatar_frame" not in existing_columns:
+        connection.execute("ALTER TABLE users ADD COLUMN avatar_frame TEXT DEFAULT 'none'")
 
 
 def _ensure_media_columns(connection):
@@ -44,6 +47,11 @@ def _ensure_quiz_columns(connection):
         connection.execute("ALTER TABLE quiz_attempts ADD COLUMN media_type TEXT DEFAULT 'anime'")
     connection.execute("UPDATE quiz_attempts SET media_type = 'anime' WHERE media_type IS NULL OR media_type = ''")
 
+    quiz_question_columns = _get_existing_columns(connection, "quiz_questions")
+    if "quiz_tag" not in quiz_question_columns:
+        connection.execute("ALTER TABLE quiz_questions ADD COLUMN quiz_tag TEXT DEFAULT 'all'")
+    connection.execute("UPDATE quiz_questions SET quiz_tag = 'all' WHERE quiz_tag IS NULL OR quiz_tag = ''")
+
 
 def _ensure_comment_columns(connection):
     comment_columns = _get_existing_columns(connection, "comments")
@@ -52,25 +60,27 @@ def _ensure_comment_columns(connection):
     connection.execute("UPDATE comments SET media_type = 'anime' WHERE media_type IS NULL OR media_type = ''")
 
 
-def _question_exists(connection, media_type, question_text):
+def _question_exists(connection, media_type, quiz_tag, question_text):
     row = connection.execute(
-        "SELECT 1 FROM quiz_questions WHERE media_type = ? AND question_text = ? LIMIT 1",
-        (media_type, question_text),
+        "SELECT 1 FROM quiz_questions WHERE media_type = ? AND quiz_tag = ? AND question_text = ? LIMIT 1",
+        (media_type, quiz_tag, question_text),
     ).fetchone()
     return row is not None
 
 
 def _insert_quiz_question(connection, question):
-    if _question_exists(connection, question["media_type"], question["question_text"]):
+    quiz_tag = question.get("quiz_tag", "all")
+    if _question_exists(connection, question["media_type"], quiz_tag, question["question_text"]):
         return False
 
     cursor = connection.execute(
         """
-        INSERT INTO quiz_questions (media_type, difficulty, question_text, explanation, is_active)
-        VALUES (?, ?, ?, ?, 1)
+        INSERT INTO quiz_questions (media_type, quiz_tag, difficulty, question_text, explanation, is_active)
+        VALUES (?, ?, ?, ?, ?, 1)
         """,
         (
             question["media_type"],
+            quiz_tag,
             question["difficulty"],
             question["question_text"],
             question.get("explanation", ""),
@@ -182,55 +192,148 @@ def _build_anime_seed_bank():
     return bank[:100]
 
 
+def _quiz_tag(label):
+    return re.sub(r"[^a-z0-9]+", "_", label.strip().lower()).strip("_")
+
+
+def _build_media_quiz_bank(media_type, topic_bank):
+    all_protagonists = [data["protagonist"] for data in topic_bank.values()]
+    all_characters = [name for data in topic_bank.values() for name in data["easy_characters"]]
+    all_medium_terms = [term for data in topic_bank.values() for term in data["medium_terms"]]
+    all_hard_terms = [term for data in topic_bank.values() for term in data["hard_terms"]]
+    quiz_bank = []
+
+    for title, data in topic_bank.items():
+        quiz_tag = _quiz_tag(title)
+        protagonist = data["protagonist"]
+        easy_characters = data["easy_characters"]
+        medium_terms = data["medium_terms"]
+        hard_terms = data["hard_terms"]
+
+        protagonist_options = [protagonist] + _pick_three_distinct(
+            [name for name in all_protagonists if name != protagonist], 0
+        )
+        quiz_bank.append(
+            {
+                "media_type": media_type,
+                "quiz_tag": quiz_tag,
+                "difficulty": "easy",
+                "question_text": f"Who is the main protagonist of {title}?",
+                "options": protagonist_options,
+                "correct": protagonist,
+                "explanation": f"{protagonist} is the main protagonist of {title}.",
+            }
+        )
+
+        for idx, character in enumerate(easy_characters[1:], start=1):
+            wrong_pool = [name for name in all_characters if name != character and name not in easy_characters]
+            options = [character] + _pick_three_distinct(wrong_pool, idx)
+            quiz_bank.append(
+                {
+                    "media_type": media_type,
+                    "quiz_tag": quiz_tag,
+                    "difficulty": "easy",
+                    "question_text": f"Which character belongs to {title}?",
+                    "options": options,
+                    "correct": character,
+                    "explanation": f"{character} is a character from {title}.",
+                }
+            )
+
+        for idx, term in enumerate(medium_terms):
+            wrong_pool = [item for item in all_medium_terms if item != term and item not in medium_terms]
+            options = [term] + _pick_three_distinct(wrong_pool, idx)
+            quiz_bank.append(
+                {
+                    "media_type": media_type,
+                    "quiz_tag": quiz_tag,
+                    "difficulty": "medium",
+                    "question_text": f"Which term is most associated with {title}?",
+                    "options": options,
+                    "correct": term,
+                    "explanation": f"{term} is a key term in {title}.",
+                }
+            )
+
+        for idx, term in enumerate(hard_terms):
+            wrong_pool = [item for item in all_hard_terms if item != term and item not in hard_terms]
+            options = [term] + _pick_three_distinct(wrong_pool, idx)
+            quiz_bank.append(
+                {
+                    "media_type": media_type,
+                    "quiz_tag": quiz_tag,
+                    "difficulty": "hard",
+                    "question_text": f"Which advanced term belongs to {title}?",
+                    "options": options,
+                    "correct": term,
+                    "explanation": f"{term} is associated with {title}.",
+                }
+            )
+
+    return quiz_bank
+
+
 def _seed_quiz_data(connection):
-    anime_count_row = connection.execute(
-        "SELECT COUNT(*) AS total FROM quiz_questions WHERE media_type = 'anime'"
-    ).fetchone()
-    anime_count = anime_count_row["total"] if anime_count_row else 0
+    connection.execute("DELETE FROM quiz_options")
+    connection.execute("DELETE FROM quiz_questions")
 
-    if anime_count < 100:
-        for question in _build_anime_seed_bank():
-            if anime_count >= 100:
-                break
-            if _insert_quiz_question(connection, question):
-                anime_count += 1
+    anime_bank = {
+        "One Piece": {
+            "protagonist": "Monkey D. Luffy",
+            "easy_characters": ["Monkey D. Luffy", "Roronoa Zoro", "Nami", "Sanji", "Usopp", "Tony Tony Chopper", "Nico Robin", "Franky", "Brook", "Jinbe"],
+            "medium_terms": ["Straw Hat Pirates", "Grand Line", "Red Line", "One Piece", "Devil Fruit", "Marines", "Wano", "Alabasta", "Going Merry", "Thousand Sunny"],
+            "hard_terms": ["Conqueror's Haki", "Armament Haki", "Observation Haki", "Road Poneglyph", "Yonko", "Shichibukai", "Worst Generation", "Logia", "Paramecia", "Zoan"],
+        },
+        "Dragon Ball": {
+            "protagonist": "Goku",
+            "easy_characters": ["Goku", "Vegeta", "Gohan", "Piccolo", "Krillin", "Trunks", "Bulma", "Frieza", "Cell", "Majin Buu"],
+            "medium_terms": ["Saiyan", "Kamehameha", "Dragon Radar", "Capsule Corp", "Namek", "Super Saiyan", "Senzu Bean", "Frieza Force", "Spirit Bomb", "Hyperbolic Time Chamber"],
+            "hard_terms": ["Ultra Instinct", "Kaio-ken", "Potara Earrings", "Fusion Dance", "Instant Transmission", "Beerus", "Whis", "Zeno", "Tournament of Power", "Universe 7"],
+        },
+        "Naruto": {
+            "protagonist": "Naruto Uzumaki",
+            "easy_characters": ["Naruto Uzumaki", "Sasuke Uchiha", "Sakura Haruno", "Kakashi Hatake", "Hinata Hyuga", "Shikamaru Nara", "Gaara", "Jiraiya", "Tsunade", "Rock Lee"],
+            "medium_terms": ["Hidden Leaf", "Hokage", "Chunin Exams", "Akatsuki", "Rasengan", "Sharingan", "Shadow Clone Jutsu", "Tailed Beast", "Sage Mode", "Konoha"],
+            "hard_terms": ["Mangekyo Sharingan", "Rinnegan", "Susanoo", "Amaterasu", "Tsukuyomi", "Edo Tensei", "Six Paths Sage Mode", "Eight Gates", "Kotoamatsukami", "Chidori"],
+        },
+        "Bleach": {
+            "protagonist": "Ichigo Kurosaki",
+            "easy_characters": ["Ichigo Kurosaki", "Rukia Kuchiki", "Orihime Inoue", "Uryu Ishida", "Yasutora Sado", "Renji Abarai", "Byakuya Kuchiki", "Toshiro Hitsugaya", "Kenpachi Zaraki", "Sosuke Aizen"],
+            "medium_terms": ["Soul Reaper", "Soul Society", "Zanpakuto", "Bankai", "Hollow", "Gotei 13", "Hueco Mundo", "Arrancar", "Quincy", "Seireitei"],
+            "hard_terms": ["Getsuga Tensho", "Mugetsu", "Senbonzakura Kageyoshi", "Daiguren Hyorinmaru", "Hogyoku", "Fullbring", "Vasto Lorde", "The Almighty", "Schrift", "Dangai"],
+        },
+    }
 
-    extra_bank = [
-        {
-            "media_type": "manga",
-            "difficulty": "easy",
-            "question_text": "Which manga is centered around a notebook that kills people?",
-            "options": ["Naruto", "Death Note", "Haikyuu!!", "Black Clover"],
-            "correct": "Death Note",
-            "explanation": "Death Note revolves around the supernatural notebook called Death Note.",
+    manga_bank = {
+        "One Piece": {
+            "protagonist": "Monkey D. Luffy",
+            "easy_characters": ["Monkey D. Luffy", "Roronoa Zoro", "Nami", "Sanji", "Usopp", "Tony Tony Chopper", "Nico Robin", "Franky", "Brook", "Jinbe"],
+            "medium_terms": ["Eiichiro Oda", "Weekly Shonen Jump", "Grand Line", "Wano", "Alabasta", "Dressrosa", "Marineford", "Poneglyph", "Devil Fruit", "Straw Hat Pirates"],
+            "hard_terms": ["Void Century", "Road Poneglyph", "Impel Down", "Enies Lobby", "Gear Fifth", "Haki", "Yonko", "Reverie", "Laugh Tale", "Ancient Weapons"],
         },
-        {
-            "media_type": "manga",
-            "difficulty": "medium",
-            "question_text": "Who wrote One Piece?",
-            "options": ["Masashi Kishimoto", "Eiichiro Oda", "Tite Kubo", "Yoshihiro Togashi"],
-            "correct": "Eiichiro Oda",
-            "explanation": "Eiichiro Oda is the author of One Piece.",
+        "Dragon Ball": {
+            "protagonist": "Goku",
+            "easy_characters": ["Goku", "Vegeta", "Gohan", "Piccolo", "Krillin", "Trunks", "Bulma", "Frieza", "Cell", "Majin Buu"],
+            "medium_terms": ["Akira Toriyama", "Weekly Shonen Jump", "Saiyan Saga", "Namek Saga", "Cell Saga", "Majin Buu Saga", "Kamehameha", "Capsule Corp", "Dragon Balls", "Super Saiyan"],
+            "hard_terms": ["Kaio-ken", "Instant Transmission", "Spirit Bomb", "Potara Fusion", "Fusion Dance", "Z Fighters", "King Kai", "Hyperbolic Time Chamber", "Planet Namek", "World Martial Arts Tournament"],
         },
-        {
-            "media_type": "lightnovel",
-            "difficulty": "easy",
-            "question_text": "Re:Zero started as what format before major adaptation?",
-            "options": ["Web novel", "Movie script", "Game manual", "Manga one-shot"],
-            "correct": "Web novel",
-            "explanation": "Re:Zero began as a web novel by Tappei Nagatsuki.",
+        "Naruto": {
+            "protagonist": "Naruto Uzumaki",
+            "easy_characters": ["Naruto Uzumaki", "Sasuke Uchiha", "Sakura Haruno", "Kakashi Hatake", "Hinata Hyuga", "Shikamaru Nara", "Gaara", "Jiraiya", "Tsunade", "Rock Lee"],
+            "medium_terms": ["Masashi Kishimoto", "Weekly Shonen Jump", "Konoha", "Chunin Exams", "Akatsuki", "Rasengan", "Sharingan", "Sage Mode", "Tailed Beasts", "Hokage"],
+            "hard_terms": ["Mangekyo Sharingan", "Rinnegan", "Edo Tensei", "Six Paths", "Susanoo", "Amaterasu", "Tsukuyomi", "Kekkei Genkai", "Uchiha Clan", "Will of Fire"],
         },
-        {
-            "media_type": "lightnovel",
-            "difficulty": "medium",
-            "question_text": "Which title is a popular light novel series by Kugane Maruyama?",
-            "options": ["Overlord", "Bakemonogatari", "No Game No Life", "Classroom of the Elite"],
-            "correct": "Overlord",
-            "explanation": "Overlord is written by Kugane Maruyama.",
+        "Bleach": {
+            "protagonist": "Ichigo Kurosaki",
+            "easy_characters": ["Ichigo Kurosaki", "Rukia Kuchiki", "Orihime Inoue", "Uryu Ishida", "Yasutora Sado", "Renji Abarai", "Byakuya Kuchiki", "Toshiro Hitsugaya", "Kenpachi Zaraki", "Sosuke Aizen"],
+            "medium_terms": ["Tite Kubo", "Weekly Shonen Jump", "Soul Society", "Hueco Mundo", "Gotei 13", "Zanpakuto", "Bankai", "Arrancar", "Quincy", "Seireitei"],
+            "hard_terms": ["Hogyoku", "Mugetsu", "Vasto Lorde", "Fullbring", "Schrift", "Wandenreich", "Thousand-Year Blood War", "Getsuga Tensho", "Senbonzakura", "Daiguren Hyorinmaru"],
         },
-    ]
+    }
 
-    for question in extra_bank:
+    quiz_bank = _build_media_quiz_bank("anime", anime_bank)
+    quiz_bank.extend(_build_media_quiz_bank("manga", manga_bank))
+    for question in quiz_bank:
         _insert_quiz_question(connection, question)
 
 
@@ -246,7 +349,8 @@ def init_db():
             current_xp INTEGER DEFAULT 0,
             next_level_xp INTEGER DEFAULT 100,
             level INTEGER DEFAULT 1,
-            avatar TEXT DEFAULT 'default.png'
+            avatar TEXT DEFAULT 'default.png',
+            avatar_frame TEXT DEFAULT 'none'
         );
         """
     )
@@ -300,6 +404,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS quiz_questions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             media_type TEXT NOT NULL DEFAULT 'anime',
+            quiz_tag TEXT NOT NULL DEFAULT 'all',
             difficulty TEXT NOT NULL DEFAULT 'easy',
             question_text TEXT NOT NULL,
             explanation TEXT DEFAULT '',

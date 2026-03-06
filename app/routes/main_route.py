@@ -41,11 +41,34 @@ ANILIST_API_URL = "https://graphql.anilist.co"
 DEFAULT_COVER_IMAGE = "https://dummyimage.com/600x900/0f2533/eaf8ff.png&text=No+Cover"
 VALID_STATUS = ["Watching", "Completed", "Plan to Watch", "Dropped", "Not Set"]
 DEFAULT_THEME = "#40e0d0"
+AVATAR_FRAMES = ["none", "neon", "gold", "crystal", "ember"]
+AVATAR_FRAME_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 MEDIA_LABELS = {
     "anime": "Anime",
     "manga": "Manga",
     "lightnovel": "Light Novel",
 }
+ANILIST_GENRES = [
+    "Action",
+    "Adventure",
+    "Comedy",
+    "Drama",
+    "Ecchi",
+    "Fantasy",
+    "Horror",
+    "harem",
+    "Mahou Shoujo",
+    "Mecha",
+    "Music",
+    "Mystery",
+    "Psychological",
+    "Romance",
+    "Sci-Fi",
+    "Slice of Life",
+    "Sports",
+    "Supernatural",
+    "Thriller",
+]
 PROFILE_MEDIA_ORDER = ["anime", "manga", "lightnovel"]
 OFFLINE_CARDS = {
     "anime": [
@@ -296,7 +319,15 @@ def _current_anime_season():
     return "FALL", year
 
 
-def _fetch_anilist_media_list(media_type, per_page=12, sort="popularity", top=False, seasonal=False, search=None):
+def _fetch_anilist_media_list(
+    media_type,
+    per_page=12,
+    sort="popularity",
+    top=False,
+    seasonal=False,
+    search=None,
+    genres=None,
+):
     sort_map = {
         "popularity": ["POPULARITY_DESC"],
         "score": ["SCORE_DESC"],
@@ -318,6 +349,12 @@ def _fetch_anilist_media_list(media_type, per_page=12, sort="popularity", top=Fa
         variables["search"] = search
         var_defs.append("$search: String")
         media_args.append("search: $search")
+
+    selected_genres = [genre for genre in (genres or []) if genre]
+    if selected_genres:
+        variables["genreIn"] = selected_genres
+        var_defs.append("$genreIn: [String]")
+        media_args.append("genre_in: $genreIn")
 
     if seasonal and media_type == "anime":
         season, season_year = _current_anime_season()
@@ -445,12 +482,29 @@ def _load_favorite_ids(user_id, media_type):
 
 def _save_profile_customization(cursor, user_id):
     current_user = cursor.execute(
-        "SELECT banner_url FROM users WHERE id = ?",
+        "SELECT banner_url, level, avatar_frame FROM users WHERE id = ?",
         (user_id,),
     ).fetchone()
 
     bio = (request.form.get("bio") or "").strip()[:220]
     theme_color = (request.form.get("theme_color") or "").strip()
+    avatar_frame_raw = (request.form.get("avatar_frame") or "none").strip()
+    avatar_frame = (
+        avatar_frame_raw.lower()
+        if avatar_frame_raw.lower() in AVATAR_FRAMES
+        else avatar_frame_raw
+    )
+    available_frames = _available_avatar_frames()
+    frame_by_value = {frame["value"]: frame for frame in available_frames}
+    if avatar_frame not in frame_by_value:
+        avatar_frame = "none"
+    selected_required_level = frame_by_value.get(avatar_frame, {}).get("required_level", 0)
+    current_level = current_user["level"] if current_user and current_user["level"] is not None else 1
+    if current_level < selected_required_level:
+        current_saved_frame = current_user["avatar_frame"] if current_user and current_user["avatar_frame"] else "none"
+        current_saved_required_level = frame_by_value.get(current_saved_frame, {}).get("required_level", 0)
+        avatar_frame = current_saved_frame if current_level >= current_saved_required_level else "none"
+        flash(f"Frame is locked. Reach level {selected_required_level} to use it.")
     banner_url = current_user["banner_url"] if current_user else ""
     uploaded_banner = request.files.get("banner_file")
 
@@ -478,10 +532,10 @@ def _save_profile_customization(cursor, user_id):
     cursor.execute(
         """
         UPDATE users
-        SET bio = ?, banner_url = ?, theme_color = ?
+        SET bio = ?, banner_url = ?, theme_color = ?, avatar_frame = ?
         WHERE id = ?
         """,
-        (bio, banner_url, theme_color, user_id),
+        (bio, banner_url, theme_color, avatar_frame, user_id),
     )
     flash("Profile updated.")
 
@@ -492,6 +546,42 @@ def _build_profile_groups(favorites):
         status = anime["status"] if anime["status"] else "Not Set"
         grouped[status if status in grouped else "Not Set"].append(anime)
     return grouped
+
+
+def _available_avatar_frames():
+    frames = [
+        {"value": frame, "label": frame.replace("_", " ").title(), "required_level": 0}
+        for frame in AVATAR_FRAMES
+    ]
+    seen_values = {frame["value"] for frame in frames}
+    frames_dir = os.path.join(current_app.root_path, "static", "avatar_frames")
+    os.makedirs(frames_dir, exist_ok=True)
+
+    for root, _, file_names in os.walk(frames_dir):
+        for file_name in sorted(file_names):
+            file_path = os.path.join(root, file_name)
+            extension = os.path.splitext(file_name)[1].lower()
+            if not os.path.isfile(file_path) or extension not in AVATAR_FRAME_IMAGE_EXTENSIONS:
+                continue
+
+            relative_path = os.path.relpath(file_path, frames_dir).replace("\\", "/")
+            if relative_path in seen_values:
+                continue
+
+            parent_folder = os.path.basename(os.path.dirname(file_path))
+            match = re.search(r"(?:lvl|level)\s*[_-]?\s*(\d+)", parent_folder, re.IGNORECASE)
+            required_level = int(match.group(1)) if match else 0
+
+            frames.append(
+                {
+                    "value": relative_path,
+                    "label": file_name,
+                    "required_level": required_level,
+                }
+            )
+            seen_values.add(relative_path)
+
+    return frames
 
 
 @main_bp.route("/")
@@ -603,15 +693,24 @@ def search():
     media_type = _get_media_type()
     results = []
     favorite_ids = []
+    selected_genres = []
+    query = ""
 
     if request.method == "POST":
         query = (request.form.get("anime_name") or "").strip()
-        if query:
+        selected_genres = [
+            genre.strip()
+            for genre in request.form.getlist("genres")
+            if (genre or "").strip()
+        ]
+        has_filters = bool(query or selected_genres)
+        if has_filters:
             try:
                 results = _fetch_anilist_media_list(
                     media_type,
                     per_page=20,
                     search=query,
+                    genres=selected_genres,
                 )
                 results = _sort_by_score_desc(results)
             except RequestException:
@@ -625,6 +724,9 @@ def search():
         favorite_ids=favorite_ids,
         current_media=media_type,
         media_label=MEDIA_LABELS[media_type],
+        available_genres=ANILIST_GENRES,
+        selected_genres=selected_genres,
+        search_query=query,
     )
 
 
@@ -698,6 +800,7 @@ def anime_detail(anime_id):
 def profile():
     media_type = _get_media_type()
     user_id = int(session["user_id"])
+    available_frames = _available_avatar_frames()
     connection = get_db_connection()
     cursor = connection.cursor()
 
@@ -706,15 +809,23 @@ def profile():
         connection.commit()
 
     user = cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    frame_by_value = {frame["value"]: frame for frame in available_frames}
+    current_frame = user["avatar_frame"] if user and user["avatar_frame"] else "none"
+    current_required_level = frame_by_value.get(current_frame, {}).get("required_level", 0)
+    user_level = user["level"] if user and user["level"] is not None else 1
+    if user_level < current_required_level:
+        cursor.execute("UPDATE users SET avatar_frame = 'none' WHERE id = ?", (user_id,))
+        connection.commit()
+        user = cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     favorites = get_user_favorites_with_status(user_id)
     grouped_favorites = _build_profile_groups(favorites)
     status_counts = {status: len(grouped_favorites[status]) for status in VALID_STATUS}
     media_counts = {media: 0 for media in PROFILE_MEDIA_ORDER}
     for fav in favorites:
-        media_type = (fav["media_type"] or "anime").lower()
-        if media_type not in media_counts:
-            media_counts[media_type] = 0
-        media_counts[media_type] += 1
+        fav_media_type = (fav["media_type"] or "anime").lower()
+        if fav_media_type not in media_counts:
+            media_counts[fav_media_type] = 0
+        media_counts[fav_media_type] += 1
     total_favorites = len(favorites)
     completion_rate = (
         int((status_counts["Completed"] / total_favorites) * 100)
@@ -752,6 +863,8 @@ def profile():
         fav_count=total_favorites,
         badges=[],
         avatar_items=[],
+        avatar_frames=available_frames,
+        avatar_style_frames=AVATAR_FRAMES,
         current_media=media_type,
     )
 

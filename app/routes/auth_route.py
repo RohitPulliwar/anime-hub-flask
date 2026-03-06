@@ -11,47 +11,47 @@ auth_bp = Blueprint("auth_bp", __name__)
 
 @auth_bp.route("/register", methods=["GET", "POST"])
 def register():
-    if request.method == "GET":
-        return render_template("register.html")
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
 
-    username = request.form.get("username", "").strip()
-    password = request.form.get("password", "")
+        if not username or not password:
+            flash("Please fill in both username and password.")
+            return redirect(url_for("auth_bp.register"))
 
-    if not username or not password:
-        flash("Please fill in both username and password.")
-        return redirect(url_for("auth_bp.register"))
+        if len(password) < 6:
+            flash("Password must be at least 6 characters.")
+            return redirect(url_for("auth_bp.register"))
 
-    if len(password) < 6:
-        flash("Password must be at least 6 characters.")
-        return redirect(url_for("auth_bp.register"))
+        try:
+            create_user(username, generate_password_hash(password))
+        except sqlite3.IntegrityError:
+            flash("That username is already taken.")
+            return redirect(url_for("auth_bp.register"))
 
-    try:
-        create_user(username, generate_password_hash(password))
-    except sqlite3.IntegrityError:
-        flash("That username is already taken.")
-        return redirect(url_for("auth_bp.register"))
+        flash("Account created. You can log in now.")
+        return redirect(url_for("auth_bp.login"))
 
-    flash("Account created. You can log in now.")
-    return redirect(url_for("auth_bp.login"))
+    return render_template("register.html")
 
 
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
-    if request.method == "GET":
-        return render_template("login.html")
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+        user = get_user_by_username(username)
 
-    username = request.form.get("username", "").strip()
-    password = request.form.get("password", "")
-    user = get_user_by_username(username)
+        if user and check_password_hash(user["password"], password):
+            session["user_id"] = user["id"]
+            session["username"] = user["username"]
+            flash("Welcome back.")
+            return redirect(url_for("main_bp.dashboard"))
 
-    if user and check_password_hash(user["password"], password):
-        session["user_id"] = user["id"]
-        session["username"] = user["username"]
-        flash("Welcome back.")
-        return redirect(url_for("main_bp.dashboard"))
+        flash("Invalid username or password.")
+        return redirect(url_for("auth_bp.login"))
 
-    flash("Invalid username or password.")
-    return redirect(url_for("auth_bp.login"))
+    return render_template("login.html")
 
 
 @auth_bp.route("/logout")
