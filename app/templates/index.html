@@ -161,6 +161,7 @@
         height: 344px;
         object-fit: cover;
         display: block;
+        image-rendering: auto;
     }
 
     .spotlight-content {
@@ -251,6 +252,7 @@
         height: 190px;
         object-fit: cover;
         display: block;
+        image-rendering: auto;
     }
 
     .rank-chip {
@@ -372,13 +374,13 @@
     <div class="showcase-grid">
         {% if hero_item %}
         <article class="spotlight">
-            <a href="{{ url_for('main_bp.anime_detail', anime_id=hero_item['mal_id'], media=current_media) }}" style="text-decoration:none; color:inherit;">
-                <img src="{{ hero_item['images']['jpg']['large_image_url'] or hero_item['images']['jpg']['image_url'] }}" alt="{{ hero_item['title'] }}">
+            <a href="{{ url_for('main_bp.anime_detail', anime_id=hero_item['id'], media=current_media) }}" style="text-decoration:none; color:inherit;">
+                <img src="{{ hero_item['coverImage']['large'] or hero_item['coverImage']['medium'] }}" alt="{{ hero_item['title'] }}">
                 <div class="spotlight-content">
                     <p class="spotlight-kicker">Top Spotlight</p>
                     <h3>{{ hero_item['title'][:62] }}{% if hero_item['title']|length > 62 %}...{% endif %}</h3>
                     <p>
-                        {% if hero_item['score'] %}Score {{ hero_item['score'] }}{% else %}Unrated{% endif %}
+                        {% if hero_item['averageScore'] %}Score {{ (hero_item['averageScore'] / 10)|round(1) }}{% else %}Unrated{% endif %}
                         | {{ media_label }}
                     </p>
                 </div>
@@ -395,24 +397,24 @@
             <div class="trend-grid">
                 {% for anime in card_items %}
                 <div style="position:relative;">
-                    <a class="trend-card" href="{{ url_for('main_bp.anime_detail', anime_id=anime['mal_id'], media=current_media) }}">
-                        <img src="{{ anime['images']['jpg']['image_url'] }}" alt="{{ anime['title'] }}">
+                    <a class="trend-card" href="{{ url_for('main_bp.anime_detail', anime_id=anime['id'], media=current_media) }}">
+                        <img src="{{ anime['coverImage']['large'] or anime['coverImage']['medium'] }}" alt="{{ anime['title'] }}">
                         <span class="rank-chip">#{{ loop.index + 1 }}</span>
                         <div class="trend-info">
                             <p class="trend-name">{{ anime['title'][:36] }}{% if anime['title']|length > 36 %}...{% endif %}</p>
-                            <p class="trend-score">{% if anime['score'] %}Score {{ anime['score'] }}{% else %}No score yet{% endif %}</p>
+                            <p class="trend-score">{% if anime['averageScore'] %}Score {{ (anime['averageScore'] / 10)|round(1) }}{% else %}No score yet{% endif %}</p>
                         </div>
                     </a>
 
                     {% if "user_id" in session %}
                     <button
                         class="favorite-btn"
-                        data-anime-id="{{ anime['mal_id'] }}"
+                        data-anime-id="{{ anime['id'] }}"
                         data-anime-title="{{ anime['title'] }}"
-                        data-anime-image="{{ anime['images']['jpg']['image_url'] }}"
+                        data-anime-image="{{ anime['coverImage']['large'] or anime['coverImage']['medium'] }}"
                         data-media-type="{{ current_media }}"
-                        style="color:{{ '#ff6d54' if anime['mal_id'] in favorite_ids else '#ffffff' }};">
-                        {% if anime['mal_id'] in favorite_ids %}&#10084;{% else %}&#9825;{% endif %}
+                        style="color:{{ '#ff6d54' if anime['id'] in favorite_ids else '#ffffff' }};">
+                        {% if anime['id'] in favorite_ids %}&#10084;{% else %}&#9825;{% endif %}
                     </button>
                     {% endif %}
                 </div>

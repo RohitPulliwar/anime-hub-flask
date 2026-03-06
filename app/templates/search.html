@@ -19,11 +19,11 @@
 <div class="media-grid" style="grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));">
     {% for anime in results %}
     <div class="media-card">
-        <a href="{{ url_for('main_bp.anime_detail', anime_id=anime.mal_id, media=current_media) }}" style="text-decoration:none; color:inherit;">
-            <img src="{{ anime.images.jpg.image_url }}" alt="{{ anime.title }}" class="media-thumb" style="height:300px;">
+        <a href="{{ url_for('main_bp.anime_detail', anime_id=anime.id, media=current_media) }}" style="text-decoration:none; color:inherit;">
+            <img src="{{ anime.coverImage.large or anime.coverImage.medium }}" alt="{{ anime.title }}" class="media-thumb" style="height:300px;">
             <span class="pill-badge type-badge">{{ media_label|upper }}</span>
-            {% if anime.score %}
-            <span class="pill-badge score-badge">Score {{ anime.score }}</span>
+            {% if anime.averageScore %}
+            <span class="pill-badge score-badge">Score {{ (anime.averageScore / 10)|round(1) }}</span>
             {% endif %}
 
             <div class="media-info">
@@ -35,19 +35,19 @@
                     Chapters: {{ anime.chapters or "Unknown" }}
                     {% endif %}
                 </p>
-                <p style="margin:4px 0 0; color:#9fbecf; font-size:13px;">Type: {{ anime.type or "Unknown" }}</p>
+                <p style="margin:4px 0 0; color:#9fbecf; font-size:13px;">Format: {{ anime.format or "Unknown" }}</p>
             </div>
         </a>
 
         {% if "user_id" in session %}
         <button
             class="favorite-btn"
-            data-anime-id="{{ anime.mal_id }}"
+            data-anime-id="{{ anime.id }}"
             data-anime-title="{{ anime.title }}"
-            data-anime-image="{{ anime.images.jpg.image_url }}"
+            data-anime-image="{{ anime.coverImage.large or anime.coverImage.medium }}"
             data-media-type="{{ current_media }}"
-            style="color:{{ '#ff6d54' if anime.mal_id in favorite_ids else '#ffffff' }};">
-            {% if anime.mal_id in favorite_ids %}&#10084;{% else %}&#9825;{% endif %}
+            style="color:{{ '#ff6d54' if anime.id in favorite_ids else '#ffffff' }};">
+            {% if anime.id in favorite_ids %}&#10084;{% else %}&#9825;{% endif %}
         </button>
         {% endif %}
     </div>

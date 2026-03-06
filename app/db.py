@@ -45,6 +45,13 @@ def _ensure_quiz_columns(connection):
     connection.execute("UPDATE quiz_attempts SET media_type = 'anime' WHERE media_type IS NULL OR media_type = ''")
 
 
+def _ensure_comment_columns(connection):
+    comment_columns = _get_existing_columns(connection, "comments")
+    if "media_type" not in comment_columns:
+        connection.execute("ALTER TABLE comments ADD COLUMN media_type TEXT DEFAULT 'anime'")
+    connection.execute("UPDATE comments SET media_type = 'anime' WHERE media_type IS NULL OR media_type = ''")
+
+
 def _question_exists(connection, media_type, question_text):
     row = connection.execute(
         "SELECT 1 FROM quiz_questions WHERE media_type = ? AND question_text = ? LIMIT 1",
@@ -262,6 +269,20 @@ def init_db():
 
     connection.execute(
         """
+        CREATE TABLE IF NOT EXISTS comments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            anime_id INTEGER NOT NULL,
+            media_type TEXT DEFAULT 'anime',
+            content TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+        """
+    )
+
+    connection.execute(
+        """
         CREATE TABLE IF NOT EXISTS quiz_attempts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
@@ -314,6 +335,7 @@ def init_db():
 
     _ensure_media_columns(connection)
     _ensure_quiz_columns(connection)
+    _ensure_comment_columns(connection)
     _seed_quiz_data(connection)
 
     connection.commit()
@@ -513,6 +535,35 @@ def get_user_favorites_with_status(user_id):
         WHERE f.user_id = ?
         """,
         (user_id,),
+    ).fetchall()
+    connection.close()
+    return rows
+
+
+def add_comment_db(user_id, anime_id, content, media_type="anime"):
+    connection = get_db_connection()
+    connection.execute(
+        """
+        INSERT INTO comments (user_id, anime_id, media_type, content)
+        VALUES (?, ?, ?, ?)
+        """,
+        (user_id, anime_id, media_type, content),
+    )
+    connection.commit()
+    connection.close()
+
+
+def get_comments_for_anime(anime_id, media_type="anime"):
+    connection = get_db_connection()
+    rows = connection.execute(
+        """
+        SELECT c.id, c.user_id, c.anime_id, c.media_type, c.content, c.created_at, u.username
+        FROM comments AS c
+        JOIN users AS u ON u.id = c.user_id
+        WHERE c.anime_id = ? AND c.media_type = ?
+        ORDER BY c.created_at DESC
+        """,
+        (anime_id, media_type),
     ).fetchall()
     connection.close()
     return rows

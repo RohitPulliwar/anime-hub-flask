@@ -3,15 +3,15 @@
 {% block title %}{{ anime.title }}{% endblock %}
 
 {% block content %}
-<a href="{{ request.referrer or url_for('main_bp.home', media=current_media) }}" class="btn btn-dark" style="margin-bottom:14px;">Back</a>
+<a href="{{ back_url }}" class="btn btn-dark" style="margin-bottom:14px;">Back</a>
 
 <section class="panel" style="padding:20px;">
     <div style="display:grid; grid-template-columns: minmax(240px, 320px) 1fr; gap:22px;">
         <div style="position:relative;">
-            <img src="{{ anime.images.jpg.image_url }}" alt="{{ anime.title }}" style="width:100%; border-radius:14px; border:1px solid var(--line);">
+            <img src="{{ anime.coverImage.large or anime.coverImage.medium }}" alt="{{ anime.title }}" style="width:100%; border-radius:14px; border:1px solid var(--line);">
             <span class="pill-badge type-badge" style="bottom:14px;">{{ media_label|upper }}</span>
-            {% if anime.score %}
-            <span class="pill-badge score-badge" style="left:auto; right:12px;">Score {{ anime.score }}</span>
+            {% if anime.averageScore %}
+            <span class="pill-badge score-badge" style="left:auto; right:12px;">Score {{ (anime.averageScore / 10)|round(1) }}</span>
             {% endif %}
         </div>
 
@@ -26,22 +26,23 @@
             <p style="margin:0 0 8px; color:#9ec0d1;"><strong style="color:#dff3ff;">Chapters:</strong> {{ anime.chapters or "Unknown" }}</p>
             {% endif %}
             <p style="margin:0 0 8px; color:#9ec0d1;"><strong style="color:#dff3ff;">Status:</strong> {{ anime.status or "Unknown" }}</p>
+            <p style="margin:0 0 8px; color:#9ec0d1;"><strong style="color:#dff3ff;">Format:</strong> {{ anime.format or "Unknown" }}</p>
             <p style="margin:0 0 14px; color:#9ec0d1;">
                 <strong style="color:#dff3ff;">Genres:</strong>
-                {% for genre in anime.genres %}{{ genre.name }}{% if not loop.last %}, {% endif %}{% endfor %}
+                {% for genre in anime.genres %}{{ genre }}{% if not loop.last %}, {% endif %}{% endfor %}
             </p>
 
             {% if "user_id" in session %}
             <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px;">
                 <button id="fav-btn" class="btn btn-primary">{% if is_favorite %}Remove Favorite{% else %}Add Favorite{% endif %}</button>
-                <form method="POST" action="{{ url_for('main_bp.anime_detail', anime_id=anime.mal_id, media=current_media) }}" style="display:flex; gap:8px;">
-                    <select name="status" class="input" style="min-width:170px;">
-                        <option value="">-- Select Status --</option>
-                        <option value="Watching" {% if my_status == "Watching" %}selected{% endif %}>Watching</option>
-                        <option value="Completed" {% if my_status == "Completed" %}selected{% endif %}>Completed</option>
-                        <option value="Plan to Watch" {% if my_status == "Plan to Watch" %}selected{% endif %}>Plan to Watch</option>
-                        <option value="Dropped" {% if my_status == "Dropped" %}selected{% endif %}>Dropped</option>
-                    </select>
+                <form method="POST" action="{{ url_for('main_bp.anime_detail', anime_id=anime.id, media=current_media) }}" style="display:flex; gap:8px;">
+                    <select name="status" class="input" style="min-width:170px; color:white;">
+    <option value="">-- Select Status --</option>
+    <option value="Watching" {% if my_status == "Watching" %}selected{% endif %}>Watching</option>
+    <option value="Completed" {% if my_status == "Completed" %}selected{% endif %}>Completed</option>
+    <option value="Plan to Watch" {% if my_status == "Plan to Watch" %}selected{% endif %}>Plan to Watch</option>
+    <option value="Dropped" {% if my_status == "Dropped" %}selected{% endif %}>Dropped</option>
+</select>
                     <button type="submit" class="btn btn-dark">Save</button>
                 </form>
             </div>
@@ -49,19 +50,56 @@
 
             <div class="panel" style="padding:14px; background:rgba(255,255,255,0.03);">
                 <p style="margin:0; line-height:1.7; color:#c5dcea;">
-                    {{ anime.synopsis or "Synopsis not available." }}
+                    {{ anime.description or "Description not available." }}
                 </p>
             </div>
         </div>
     </div>
 </section>
 
+<section class="panel" style="padding:20px; margin-top:16px;">
+    <h2 style="margin:0 0 12px;">Comments</h2>
+
+    {% if "user_id" in session %}
+    <form method="POST" action="{{ url_for('comment_bp.add_comment') }}" style="margin:0 0 16px;">
+        <input type="hidden" name="anime_id" value="{{ anime.id }}">
+        <input type="hidden" name="media_type" value="{{ current_media }}">
+        <textarea
+            name="content"
+            class="input"
+            rows="3"
+            maxlength="500"
+            placeholder="Write your comment..."
+            style="width:100%; resize:vertical;"
+            required
+        ></textarea>
+        <button type="submit" class="btn btn-primary" style="margin-top:10px;">Post Comment</button>
+    </form>
+    {% endif %}
+
+    {% if comments %}
+    <div style="display:grid; gap:10px;">
+        {% for comment in comments %}
+        <article class="panel" style="padding:12px; background:rgba(255,255,255,0.03);">
+            <div style="display:flex; justify-content:space-between; gap:10px; align-items:center; margin-bottom:8px;">
+                <strong>{{ comment.username }}</strong>
+                <small style="color:#9ec0d1;">{{ comment.created_at }}</small>
+            </div>
+            <p style="margin:0; color:#c5dcea; white-space:pre-wrap;">{{ comment.content }}</p>
+        </article>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p style="margin:0; color:#9ec0d1;">No comments yet.</p>
+    {% endif %}
+</section>
+
 {% if "user_id" in session %}
 <script>
 const animeData = {
-    anime_id: {{ anime.mal_id | tojson }},
+    anime_id: {{ anime.id | tojson }},
     anime_title: {{ anime.title | tojson }},
-    anime_image: {{ anime.images.jpg.image_url | tojson }},
+    anime_image: {{ (anime.coverImage.large or anime.coverImage.medium) | tojson }},
     media_type: {{ current_media | tojson }}
 };
 
