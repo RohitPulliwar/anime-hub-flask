@@ -104,6 +104,23 @@ OFFLINE_CARDS = {
 }
 
 
+def _detect_uploaded_image_type(file_storage):
+    stream = file_storage.stream
+    start_position = stream.tell()
+    header = stream.read(32)
+    stream.seek(start_position)
+
+    if header.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "png"
+    if header.startswith(b"\xff\xd8\xff"):
+        return "jpg"
+    if header[:6] in {b"GIF87a", b"GIF89a"}:
+        return "gif"
+    if header.startswith(b"RIFF") and header[8:12] == b"WEBP":
+        return "webp"
+    return None
+
+
 def _offline_trending(media_type):
     cards = []
     for item in OFFLINE_CARDS.get(media_type, OFFLINE_CARDS["anime"]):
@@ -477,7 +494,7 @@ def _load_favorite_ids(user_id, media_type):
         (user_id, media_type),
     ).fetchall()
     connection.close()
-    return [row[0] for row in rows]
+    return [row["anime_id"] for row in rows]
 
 
 def _save_profile_customization(cursor, user_id):
@@ -515,8 +532,13 @@ def _save_profile_customization(cursor, user_id):
             else ""
         )
         allowed = {"png", "jpg", "jpeg", "webp", "gif"}
+        detected_type = _detect_uploaded_image_type(uploaded_banner)
+        extension_matches_type = (
+            (detected_type == "jpg" and extension in {"jpg", "jpeg"})
+            or detected_type == extension
+        )
 
-        if extension in allowed:
+        if extension in allowed and extension_matches_type:
             banner_dir = os.path.join(current_app.root_path, "static", "profile_banners")
             os.makedirs(banner_dir, exist_ok=True)
             file_name = f"{uuid4().hex}.{extension}"
@@ -524,7 +546,7 @@ def _save_profile_customization(cursor, user_id):
             uploaded_banner.save(upload_path)
             banner_url = url_for("static", filename=f"profile_banners/{file_name}")
         else:
-            flash("Banner file must be PNG, JPG, JPEG, WEBP, or GIF.")
+            flash("Banner must be a valid PNG, JPG, JPEG, WEBP, or GIF image.")
 
     if not re.fullmatch(r"#[0-9A-Fa-f]{6}", theme_color):
         theme_color = DEFAULT_THEME

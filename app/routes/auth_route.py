@@ -1,10 +1,9 @@
-import sqlite3
 from functools import wraps
 
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from app.db import create_user, get_user_by_username
+from app.db import DuplicateUsernameError, create_user, get_user_by_username
 
 auth_bp = Blueprint("auth_bp", __name__)
 
@@ -25,7 +24,7 @@ def register():
 
         try:
             create_user(username, generate_password_hash(password))
-        except sqlite3.IntegrityError:
+        except DuplicateUsernameError:
             flash("That username is already taken.")
             return redirect(url_for("auth_bp.register"))
 

@@ -607,6 +607,7 @@
             </div>
 
             <form method="POST" enctype="multipart/form-data" class="customize">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                 <h3>Customize Profile</h3>
                 <div class="field">
                     <label for="bio">Bio (max 220 chars)</label>

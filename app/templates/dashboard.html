@@ -57,7 +57,10 @@ document.querySelectorAll(".favorite-btn").forEach((button) => {
         };
         const response = await fetch("{{ url_for('fav_bp.toggle_favorite') }}", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": "{{ csrf_token() }}"
+            },
             body: JSON.stringify(payload)
         });
         if (!response.ok) return;

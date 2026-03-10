@@ -100,6 +100,7 @@
     <h1>Choose Your Avatar</h1>
 
     <form method="POST">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         <div class="avatar-grid">
 
             {% for avatar in avatars %}

@@ -36,6 +36,7 @@
             <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px;">
                 <button id="fav-btn" class="btn btn-primary">{% if is_favorite %}Remove Favorite{% else %}Add Favorite{% endif %}</button>
                 <form method="POST" action="{{ url_for('main_bp.anime_detail', anime_id=anime.id, media=current_media) }}" style="display:flex; gap:8px;">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                     <select name="status" class="input" style="min-width:170px;">
     <option value="">-- Select Status --</option>
     <option value="Watching" {% if my_status == "Watching" %}selected{% endif %}>Watching</option>
@@ -62,6 +63,7 @@
 
     {% if "user_id" in session %}
     <form method="POST" action="{{ url_for('comment_bp.add_comment') }}" style="margin:0 0 16px;">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="anime_id" value="{{ anime.id }}">
         <input type="hidden" name="media_type" value="{{ current_media }}">
         <textarea
@@ -106,7 +108,10 @@ const animeData = {
 document.getElementById("fav-btn").addEventListener("click", async () => {
     const response = await fetch("{{ url_for('fav_bp.toggle_favorite') }}", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": "{{ csrf_token() }}"
+        },
         body: JSON.stringify(animeData)
     });
     if (!response.ok) return;

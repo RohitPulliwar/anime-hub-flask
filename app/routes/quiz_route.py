@@ -13,10 +13,10 @@ MEDIA_LABELS = {
 VALID_DIFFICULTIES = {"all", "easy", "medium", "hard"}
 QUESTIONS_PER_QUIZ = 5
 XP_PER_CORRECT_BY_DIFFICULTY = {
-    "all": 150,
+    "all": 50,
     "easy": 10,
-    "medium": 50,
-    "hard": 100,
+    "medium": 20,
+    "hard": 35,
 }
 SERIES_LABELS = {
     "one_piece": "One Piece",
@@ -148,11 +148,30 @@ def quiz():
     media_type = _get_media_type()
     difficulty = _get_difficulty()
     available_series = _available_quiz_series(media_type)
-    selected_series = (request.args.get("series") or "all").strip().lower()
-    if selected_series != "all" and selected_series not in available_series:
-        selected_series = "all"
+    selected_series = (request.args.get("series") or "").strip().lower()
+    if selected_series and selected_series not in available_series:
+        selected_series = ""
 
     if request.method == "GET":
+        if not available_series:
+            flash(f"No {MEDIA_LABELS.get(media_type, 'selected')} quiz questions available yet.")
+            return redirect(url_for("main_bp.profile", media=media_type))
+
+        if not selected_series:
+            return render_template(
+                "quiz.html",
+                questions=[],
+                media_label=MEDIA_LABELS.get(media_type, "Anime"),
+                current_media=media_type,
+                media_switch_endpoint="quiz_bp.quiz",
+                media_switch_difficulty=difficulty,
+                current_difficulty=difficulty,
+                series_options=available_series,
+                current_series="",
+                series_label_map=SERIES_LABELS,
+                choose_series_only=True,
+            )
+
         questions = _fetch_quiz_questions(
             media_type,
             difficulty=difficulty,
@@ -165,9 +184,7 @@ def quiz():
         session["quiz_series"] = selected_series
 
         if not questions:
-            detail = []
-            if selected_series != "all":
-                detail.append(_series_label(selected_series))
+            detail = [_series_label(selected_series)]
             if difficulty != "all":
                 detail.append(difficulty.title())
             detail_text = " ".join(detail).strip()
@@ -191,6 +208,7 @@ def quiz():
             series_options=available_series,
             current_series=selected_series,
             series_label_map=SERIES_LABELS,
+            choose_series_only=False,
         )
 
     question_ids = session.get("quiz_question_ids", [])

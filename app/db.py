@@ -1,17 +1,88 @@
-import sqlite3
+import os
 import re
 
-DATABASE_PATH = "database.db"
+from psycopg import connect
+from psycopg.rows import dict_row
+
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://postgres:postgres@localhost:5432/self_flask",
+)
+
+
+class DuplicateUsernameError(Exception):
+    pass
+
+
+def _to_pg_query(query):
+    # Keep existing sqlite-style "?" placeholders working across the codebase.
+    return query.replace("?", "%s")
+
+
+class _CursorAdapter:
+    def __init__(self, cursor):
+        self._cursor = cursor
+
+    def execute(self, query, params=()):
+        self._cursor.execute(_to_pg_query(query), params or ())
+        return self
+
+    def fetchone(self):
+        return self._cursor.fetchone()
+
+    def fetchall(self):
+        return self._cursor.fetchall()
+
+    @property
+    def lastrowid(self):
+        return getattr(self._cursor, "lastrowid", None)
+
+    def __iter__(self):
+        return iter(self._cursor)
+
+    def __getattr__(self, name):
+        return getattr(self._cursor, name)
+
+
+class _ConnectionAdapter:
+    def __init__(self, connection):
+        self._connection = connection
+
+    def execute(self, query, params=()):
+        cursor = self._connection.execute(_to_pg_query(query), params or ())
+        return _CursorAdapter(cursor)
+
+    def cursor(self):
+        return _CursorAdapter(self._connection.cursor())
+
+    def commit(self):
+        self._connection.commit()
+
+    def rollback(self):
+        self._connection.rollback()
+
+    def close(self):
+        self._connection.close()
+
+    def __getattr__(self, name):
+        return getattr(self._connection, name)
 
 
 def get_db_connection():
-    connection = sqlite3.connect(DATABASE_PATH)
-    connection.row_factory = sqlite3.Row
-    return connection
+    connection = connect(DATABASE_URL, row_factory=dict_row)
+    return _ConnectionAdapter(connection)
 
 
 def _get_existing_columns(connection, table_name):
-    return {row["name"] for row in connection.execute(f"PRAGMA table_info({table_name})").fetchall()}
+    rows = connection.execute(
+        """
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = ?
+        """,
+        (table_name,),
+    ).fetchall()
+    return {row["column_name"] for row in rows}
 
 
 def _ensure_user_profile_columns(connection):
@@ -77,6 +148,7 @@ def _insert_quiz_question(connection, question):
         """
         INSERT INTO quiz_questions (media_type, quiz_tag, difficulty, question_text, explanation, is_active)
         VALUES (?, ?, ?, ?, ?, 1)
+        RETURNING id
         """,
         (
             question["media_type"],
@@ -86,7 +158,8 @@ def _insert_quiz_question(connection, question):
             question.get("explanation", ""),
         ),
     )
-    question_id = cursor.lastrowid
+    row = cursor.fetchone()
+    question_id = row["id"]
 
     for option_text in question["options"]:
         connection.execute(
@@ -274,9 +347,6 @@ def _build_media_quiz_bank(media_type, topic_bank):
 
 
 def _seed_quiz_data(connection):
-    connection.execute("DELETE FROM quiz_options")
-    connection.execute("DELETE FROM quiz_questions")
-
     anime_bank = {
         "One Piece": {
             "protagonist": "Monkey D. Luffy",
@@ -333,8 +403,12 @@ def _seed_quiz_data(connection):
 
     quiz_bank = _build_media_quiz_bank("anime", anime_bank)
     quiz_bank.extend(_build_media_quiz_bank("manga", manga_bank))
+    inserted_count = 0
     for question in quiz_bank:
-        _insert_quiz_question(connection, question)
+        if _insert_quiz_question(connection, question):
+            inserted_count += 1
+
+    return inserted_count
 
 
 def init_db():
@@ -343,7 +417,7 @@ def init_db():
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             username TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
             current_xp INTEGER DEFAULT 0,
@@ -360,7 +434,7 @@ def init_db():
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS favorites (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             user_id INTEGER NOT NULL,
             anime_id INTEGER NOT NULL,
             anime_title TEXT NOT NULL,
@@ -374,7 +448,7 @@ def init_db():
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS comments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             user_id INTEGER NOT NULL,
             anime_id INTEGER NOT NULL,
             media_type TEXT DEFAULT 'anime',
@@ -388,7 +462,7 @@ def init_db():
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS quiz_attempts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             user_id INTEGER NOT NULL,
             score INTEGER DEFAULT 0,
             exp_earned INTEGER DEFAULT 0,
@@ -402,7 +476,7 @@ def init_db():
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS quiz_questions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             media_type TEXT NOT NULL DEFAULT 'anime',
             quiz_tag TEXT NOT NULL DEFAULT 'all',
             difficulty TEXT NOT NULL DEFAULT 'easy',
@@ -416,7 +490,7 @@ def init_db():
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS quiz_options (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             question_id INTEGER NOT NULL,
             option_text TEXT NOT NULL,
             is_correct INTEGER NOT NULL DEFAULT 0,
@@ -428,7 +502,7 @@ def init_db():
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS user_anime_status (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             user_id INTEGER NOT NULL,
             anime_id INTEGER NOT NULL,
             status TEXT NOT NULL,
@@ -449,12 +523,19 @@ def init_db():
 
 def create_user(username, password_hash):
     connection = get_db_connection()
-    connection.execute(
-        "INSERT INTO users (username, password) VALUES (?, ?)",
-        (username, password_hash),
-    )
-    connection.commit()
-    connection.close()
+    try:
+        connection.execute(
+            "INSERT INTO users (username, password) VALUES (?, ?)",
+            (username, password_hash),
+        )
+        connection.commit()
+    except Exception as exc:
+        connection.rollback()
+        if getattr(exc, "sqlstate", None) == "23505":
+            raise DuplicateUsernameError from exc
+        raise
+    finally:
+        connection.close()
 
 
 def get_user_by_username(username):

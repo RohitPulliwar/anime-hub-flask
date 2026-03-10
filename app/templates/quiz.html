@@ -6,11 +6,35 @@
 <section class="panel" style="padding:22px;">
     <h1 class="section-title" style="margin-top:0;">{{ media_label }} Quiz Arena</h1>
 
+    {% if choose_series_only %}
+    <p style="margin:0 0 12px; color:#9ec0d1;">
+        Choose which {{ media_label|lower }} series you want to attempt.
+    </p>
+    <form method="GET" action="{{ url_for('quiz_bp.quiz') }}" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:18px;">
+        <input type="hidden" name="media" value="{{ current_media }}">
+        <label for="series" style="color:#9ec0d1; font-size:14px;">Series</label>
+        <select id="series" name="series" class="input" style="width:auto; min-width:220px;" required>
+            <option value="" selected disabled>Select one series</option>
+            {% for series in series_options %}
+            <option value="{{ series }}">
+                {{ series_label_map.get(series, series|replace('_', ' ')|title) }}
+            </option>
+            {% endfor %}
+        </select>
+        <label for="difficulty" style="color:#9ec0d1; font-size:14px;">Difficulty</label>
+        <select id="difficulty" name="difficulty" class="input" style="width:auto; min-width:150px;">
+            <option value="all" {% if current_difficulty == 'all' %}selected{% endif %}>All</option>
+            <option value="easy" {% if current_difficulty == 'easy' %}selected{% endif %}>Easy</option>
+            <option value="medium" {% if current_difficulty == 'medium' %}selected{% endif %}>Medium</option>
+            <option value="hard" {% if current_difficulty == 'hard' %}selected{% endif %}>Hard</option>
+        </select>
+        <button type="submit" class="btn btn-primary">Start Quiz</button>
+    </form>
+    {% else %}
     <form method="GET" action="{{ url_for('quiz_bp.quiz') }}" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:18px;">
         <input type="hidden" name="media" value="{{ current_media }}">
         <label for="series" style="color:#9ec0d1; font-size:14px;">Series</label>
         <select id="series" name="series" class="input" style="width:auto; min-width:180px;">
-            <option value="all" {% if current_series == 'all' %}selected{% endif %}>All</option>
             {% for series in series_options %}
             <option value="{{ series }}" {% if current_series == series %}selected{% endif %}>
                 {{ series_label_map.get(series, series|replace('_', ' ')|title) }}
@@ -28,6 +52,7 @@
     </form>
 
     <form method="POST" action="{{ url_for('quiz_bp.quiz', media=current_media) }}">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
         {% for question in questions %}
         <div class="panel" style="padding:15px; margin-bottom:14px; background:rgba(255,255,255,0.03);">
             <h3 style="margin:0 0 8px; font-size:20px; font-family:'Chakra Petch','Segoe UI',sans-serif;">{{ loop.index }}. {{ question.question }}</h3>
@@ -46,5 +71,6 @@
             <button type="submit" class="btn btn-primary">Submit Quiz</button>
         </div>
     </form>
+    {% endif %}
 </section>
 {% endblock %}
