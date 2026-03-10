@@ -4,10 +4,8 @@ import re
 from psycopg import connect
 from psycopg.rows import dict_row
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://postgres:postgres@localhost:5432/self_flask",
-)
+DATABASE_URL = os.getenv("DATABASE_URL")
+
 
 
 class DuplicateUsernameError(Exception):
@@ -69,8 +67,7 @@ class _ConnectionAdapter:
 
 
 def get_db_connection():
-    connection = connect(DATABASE_URL, row_factory=dict_row)
-    return _ConnectionAdapter(connection)
+    return connect(DATABASE_URL)
 
 
 def _get_existing_columns(connection, table_name):
