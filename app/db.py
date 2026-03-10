@@ -4,8 +4,8 @@ import re
 from psycopg import connect
 from psycopg.rows import dict_row
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-
+# Get database URL from Railway environment variable
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
 
 class DuplicateUsernameError(Exception):
@@ -67,8 +67,11 @@ class _ConnectionAdapter:
 
 
 def get_db_connection():
-    return connect(DATABASE_URL)
+    if not DATABASE_URL:
+        raise RuntimeError("DATABASE_URL environment variable not set")
 
+    connection = connect(DATABASE_URL, row_factory=dict_row)
+    return _ConnectionAdapter(connection)
 
 def _get_existing_columns(connection, table_name):
     rows = connection.execute(
